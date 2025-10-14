@@ -17,7 +17,11 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "configProvision", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestDeviceStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestDeviceScan", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "postCustomData", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "postCustomData", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "startScan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "connectToDevice", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setWifi", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "scanWifi", returnType: CAPPluginReturnPromise)
     ]
 
     private var implementation: BlufiImplementation?
@@ -96,6 +100,43 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         implementation?.postCustomData(data: customData)
+        call.resolve()
+    }
+
+    // Simplified API methods
+    @objc func startScan(_ call: CAPPluginCall) {
+        let filter = call.getString("filter")
+        implementation?.scanDeviceInfo(filter: filter)
+        call.resolve(["success": true])
+    }
+
+    @objc func connectToDevice(_ call: CAPPluginCall) {
+        guard let address = call.getString("address") else {
+            call.resolve(["success": false])
+            return
+        }
+
+        implementation?.connectPeripheral(peripheralId: address)
+        // Auto-negotiate security after connection
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.implementation?.negotiateSecurity()
+        }
+        call.resolve(["success": true])
+    }
+
+    @objc func setWifi(_ call: CAPPluginCall) {
+        guard let ssid = call.getString("ssid"),
+              let password = call.getString("password") else {
+            call.reject("Missing ssid or password")
+            return
+        }
+
+        implementation?.configProvision(ssid: ssid, password: password)
+        call.resolve()
+    }
+
+    @objc func scanWifi(_ call: CAPPluginCall) {
+        implementation?.requestDeviceScan()
         call.resolve()
     }
 

@@ -168,6 +168,51 @@ public class BlufiPlugin extends Plugin {
         call.resolve();
     }
 
+    // Simplified API methods
+    @PluginMethod
+    public void startScan(PluginCall call) {
+        String filter = call.getString("filter");
+        scan(filter, call);
+    }
+
+    @PluginMethod
+    public void connectToDevice(PluginCall call) {
+        String deviceId = call.getString("address");
+        if (deviceId != null && mDeviceMap.containsKey(deviceId)) {
+            connectDevice(mDeviceMap.get(deviceId).getDevice());
+            // Auto-negotiate security after connection
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (mConnected && mBlufiClient != null) {
+                        mBlufiClient.negotiateSecurity();
+                    }
+                }
+            }, 1000);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } else {
+            JSObject ret = new JSObject();
+            ret.put("success", false);
+            call.resolve(ret);
+        }
+    }
+
+    @PluginMethod
+    public void setWifi(PluginCall call) {
+        String ssid = call.getString("ssid");
+        String password = call.getString("password");
+        configure(ssid, password);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void scanWifi(PluginCall call) {
+        requestDeviceWifiScan();
+        call.resolve();
+    }
+
     private void scan(String filter, PluginCall call) {
         startScan21(filter, call);
     }

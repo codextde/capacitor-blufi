@@ -1,3 +1,5 @@
+import type { PluginListenerHandle } from '@capacitor/core';
+
 export interface BleScanResult {
   address: string;
   name: string;
@@ -20,15 +22,10 @@ export type BlufiEventCallback = (event: BlufiEvent) => void;
 
 export interface BlufiPlugin {
   /**
-   * Get platform version
-   */
-  getPlatformVersion(): Promise<{ version: string }>;
-
-  /**
    * Start scanning for BLE devices
    * @param options Optional filter string to filter devices by name
    */
-  scanDeviceInfo(options?: { filter?: string }): Promise<{ success: boolean }>;
+  startScan(options?: { filter?: string }): Promise<{ success: boolean }>;
 
   /**
    * Stop scanning for BLE devices
@@ -36,58 +33,35 @@ export interface BlufiPlugin {
   stopScan(): Promise<void>;
 
   /**
-   * Connect to a BLE peripheral
-   * @param options Peripheral address to connect to
+   * Connect to a BLE device
+   * @param options Device address to connect to
    */
-  connectPeripheral(options: { peripheral: string }): Promise<{ success: boolean }>;
+  connectToDevice(options: { address: string }): Promise<{ success: boolean }>;
 
   /**
-   * Request to close the connection
+   * Configure WiFi credentials on the device
+   * @param options SSID and password for WiFi network
    */
-  requestCloseConnection(): Promise<void>;
+  setWifi(options: { ssid: string; password: string }): Promise<void>;
 
   /**
-   * Negotiate security with the device
+   * Request device to scan for available WiFi networks
    */
-  negotiateSecurity(): Promise<void>;
-
-  /**
-   * Request device version information
-   */
-  requestDeviceVersion(): Promise<void>;
-
-  /**
-   * Configure WiFi provisioning
-   * @param options SSID (username) and password for WiFi network
-   */
-  configProvision(options: { username: string; password: string }): Promise<void>;
-
-  /**
-   * Request device status
-   */
-  requestDeviceStatus(): Promise<void>;
-
-  /**
-   * Request device to scan for WiFi networks
-   */
-  requestDeviceScan(): Promise<void>;
-
-  /**
-   * Post custom data to the device
-   * @param options Custom data string to send
-   */
-  postCustomData(options: { customData: string }): Promise<void>;
+  scanWifi(): Promise<void>;
 
   /**
    * Add listener for BluFi events
    * @param eventName Event name to listen for
-   * @param callback Callback function to handle events
+   * @param listenerFunc Callback function to handle events
    */
-  addListener(eventName: 'onBlufiEvent', callback: BlufiEventCallback): Promise<{ id: string }>;
+  addListener(
+    eventName: 'onBlufiEvent',
+    listenerFunc: BlufiEventCallback
+  ): Promise<PluginListenerHandle>;
 
   /**
    * Remove all listeners for a specific event
-   * @param eventName Event name to remove listeners for
+   * @param options Event name to remove listeners for
    */
-  removeAllListeners(eventName?: string): Promise<void>;
+  removeAllListeners(options?: { eventName: string }): Promise<void>;
 }
