@@ -50,6 +50,13 @@ export interface BlufiPlugin {
   scanWifi(): Promise<void>;
 
   /**
+   * Get device information (version and status)
+   * Status includes whether device is connected to WiFi
+   * Results are sent through the event listener (device_version, device_status, device_wifi_connect)
+   */
+  getDeviceInfo(): Promise<void>;
+
+  /**
    * Add listener for BluFi events
    * @param eventName Event name to listen for
    * @param listenerFunc Callback function to handle events

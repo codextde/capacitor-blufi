@@ -18,6 +18,7 @@ npx cap sync
 * [`connectToDevice(...)`](#connecttodevice)
 * [`setWifi(...)`](#setwifi)
 * [`scanWifi()`](#scanwifi)
+* [`getDeviceInfo()`](#getdeviceinfo)
 * [`addListener('onBlufiEvent', ...)`](#addlisteneronblufievent-)
 * [`removeAllListeners(...)`](#removealllisteners)
 * [Interfaces](#interfaces)
@@ -95,6 +96,19 @@ scanWifi() => Promise<void>
 ```
 
 Request device to scan for available WiFi networks
+
+--------------------
+
+
+### getDeviceInfo()
+
+```typescript
+getDeviceInfo() => Promise<void>
+```
+
+Get device information (version and status)
+Status includes whether device is connected to WiFi
+Results are sent through the event listener (device_version, device_status, device_wifi_connect)
 
 --------------------
 

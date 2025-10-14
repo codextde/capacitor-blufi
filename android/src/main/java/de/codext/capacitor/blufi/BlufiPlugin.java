@@ -213,6 +213,14 @@ public class BlufiPlugin extends Plugin {
         call.resolve();
     }
 
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        // Request both version and status
+        requestDeviceVersion();
+        requestDeviceStatus();
+        call.resolve();
+    }
+
     private void scan(String filter, PluginCall call) {
         startScan21(filter, call);
     }

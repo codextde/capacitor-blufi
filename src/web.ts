@@ -22,4 +22,8 @@ export class BlufiWeb extends WebPlugin implements BlufiPlugin {
   async scanWifi(): Promise<void> {
     throw this.unavailable('BluFi is not available on web');
   }
+
+  async getDeviceInfo(): Promise<void> {
+    throw this.unavailable('BluFi is not available on web');
+  }
 }

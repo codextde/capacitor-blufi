@@ -21,7 +21,8 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "startScan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "connectToDevice", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setWifi", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "scanWifi", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "scanWifi", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getDeviceInfo", returnType: CAPPluginReturnPromise)
     ]
 
     private var implementation: BlufiImplementation?
@@ -137,6 +138,13 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func scanWifi(_ call: CAPPluginCall) {
         implementation?.requestDeviceScan()
+        call.resolve()
+    }
+
+    @objc func getDeviceInfo(_ call: CAPPluginCall) {
+        // Request both version and status
+        implementation?.requestDeviceVersion()
+        implementation?.requestDeviceStatus()
         call.resolve()
     }
 
