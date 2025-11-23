@@ -28,9 +28,11 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -78,6 +80,11 @@ public class BlufiPlugin extends Plugin {
 
     private final BlufiLog mLog = new BlufiLog(getClass());
 
+    // Saved calls for async results
+    private PluginCall scanWifiCall;
+    private PluginCall setWifiCall;
+    private PluginCall networkStatusCall;
+
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     public void load() {
@@ -90,155 +97,17 @@ public class BlufiPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void getPlatformVersion(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("version", "Android " + Build.VERSION.RELEASE);
-        call.resolve(ret);
-    }
-
-    @PluginMethod
-    public void scanDeviceInfo(PluginCall call) {
-        String filter = call.getString("filter");
-        scan(filter, call);
-    }
-
-    @PluginMethod
-    public void stopScan(PluginCall call) {
-        stopScan();
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void connectPeripheral(PluginCall call) {
-        String deviceId = call.getString("peripheral");
-        if (deviceId != null && mDeviceMap.containsKey(deviceId)) {
-            connectDevice(mDeviceMap.get(deviceId).getDevice());
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            call.resolve(ret);
-        } else {
-            JSObject ret = new JSObject();
-            ret.put("success", false);
-            call.resolve(ret);
-        }
-    }
-
-    @PluginMethod
-    public void requestCloseConnection(PluginCall call) {
-        disconnectGatt();
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void negotiateSecurity(PluginCall call) {
-        negotiateSecurity();
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void requestDeviceVersion(PluginCall call) {
-        requestDeviceVersion();
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void configProvision(PluginCall call) {
-        String userName = call.getString("username");
-        String password = call.getString("password");
-        configure(userName, password);
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void requestDeviceStatus(PluginCall call) {
-        requestDeviceStatus();
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void requestDeviceScan(PluginCall call) {
-        requestDeviceWifiScan();
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void postCustomData(PluginCall call) {
-        String dataStr = call.getString("customData");
-        postCustomData(dataStr);
-        call.resolve();
-    }
-
-    // Simplified API methods
-    @PluginMethod
     public void startScan(PluginCall call) {
         String filter = call.getString("filter");
-        scan(filter, call);
-    }
-
-    @PluginMethod
-    public void connectToDevice(PluginCall call) {
-        String deviceId = call.getString("address");
-        if (deviceId != null && mDeviceMap.containsKey(deviceId)) {
-            connectDevice(mDeviceMap.get(deviceId).getDevice());
-            // Auto-negotiate security after connection
-            handler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    if (mConnected && mBlufiClient != null) {
-                        mBlufiClient.negotiateSecurity();
-                    }
-                }
-            }, 1000);
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            call.resolve(ret);
-        } else {
-            JSObject ret = new JSObject();
-            ret.put("success", false);
-            call.resolve(ret);
-        }
-    }
-
-    @PluginMethod
-    public void setWifi(PluginCall call) {
-        String ssid = call.getString("ssid");
-        String password = call.getString("password");
-        configure(ssid, password);
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void scanWifi(PluginCall call) {
-        requestDeviceWifiScan();
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void getDeviceInfo(PluginCall call) {
-        // Request both version and status
-        requestDeviceVersion();
-        requestDeviceStatus();
-        call.resolve();
-    }
-
-    private void scan(String filter, PluginCall call) {
-        startScan21(filter, call);
-    }
-
-    private void startScan21(String filter, PluginCall call) {
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter == null) {
-            JSObject ret = new JSObject();
-            ret.put("success", false);
-            call.resolve(ret);
+            call.reject("Bluetooth not supported");
             return;
         }
 
         BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
         if (!adapter.isEnabled() || scanner == null) {
-            JSObject ret = new JSObject();
-            ret.put("success", false);
-            call.resolve(ret);
+            call.reject("Bluetooth not enabled");
             return;
         }
 
@@ -251,28 +120,105 @@ public class BlufiPlugin extends Plugin {
         scanner.startScan(null, new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),
                 mScanCallback);
 
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopScan(PluginCall call) {
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter != null) {
+            BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
+            if (scanner != null) {
+                scanner.stopScan(mScanCallback);
+            }
+        }
+        
+        mLog.d("Stop scan ble");
+        
         JSObject ret = new JSObject();
-        ret.put("success", true);
+        JSONArray scanResults = new JSONArray();
+        for (ScanResult result : mBleList) {
+            JSObject item = new JSObject();
+            item.put("name", result.getDevice().getName() != null ? result.getDevice().getName() : "Unknown");
+            item.put("address", result.getDevice().getAddress());
+            item.put("rssi", result.getRssi());
+            scanResults.put(item);
+        }
+        ret.put("scanResult", scanResults);
         call.resolve(ret);
     }
 
-    private void stopScan() {
-        stopScan21();
+    @PluginMethod
+    public void connectToDevice(PluginCall call) {
+        String deviceId = call.getString("deviceId");
+        if (deviceId != null && mDeviceMap.containsKey(deviceId)) {
+            connectDevice(mDeviceMap.get(deviceId).getDevice());
+            // Auto-negotiate security after connection
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (mConnected && mBlufiClient != null) {
+                        mBlufiClient.negotiateSecurity();
+                    }
+                }
+            }, 1000);
+            call.resolve();
+        } else {
+            call.reject("Device not found");
+        }
     }
 
-    private void stopScan21() {
-        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-        if (adapter == null) return;
+    @PluginMethod
+    public void disconnectFromDevice(PluginCall call) {
+        disconnectGatt();
+        call.resolve();
+    }
 
-        BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
-        if (scanner != null) {
-            scanner.stopScan(mScanCallback);
+    @PluginMethod
+    public void resetPlugin(PluginCall call) {
+        disconnectGatt();
+        mDeviceMap.clear();
+        mBleList.clear();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        requestDeviceVersion();
+        // Status will be sent via event
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void scanWifi(PluginCall call) {
+        if (mBlufiClient == null) {
+            call.reject("Not connected");
+            return;
         }
-        if (mUpdateFuture != null) {
-            mUpdateFuture.cancel(true);
+        scanWifiCall = call;
+        mBlufiClient.requestDeviceWifiScan();
+    }
+
+    @PluginMethod
+    public void setWifi(PluginCall call) {
+        if (mBlufiClient == null) {
+            call.reject("Not connected");
+            return;
         }
-        mLog.d("Stop scan ble");
-        notifyListeners("onBlufiEvent", makeJson("stop_scan_ble", "1"));
+        String ssid = call.getString("ssid");
+        String password = call.getString("password");
+        setWifiCall = call;
+        configure(ssid, password);
+    }
+
+    @PluginMethod
+    public void getNetworkStatus(PluginCall call) {
+        if (mBlufiClient == null) {
+            call.reject("Not connected");
+            return;
+        }
+        networkStatusCall = call;
+        mBlufiClient.requestDeviceStatus();
     }
 
     void connectDevice(BluetoothDevice device) {
@@ -291,13 +237,10 @@ public class BlufiPlugin extends Plugin {
     private void disconnectGatt() {
         if (mBlufiClient != null) {
             mBlufiClient.requestCloseConnection();
+            mBlufiClient.close();
+            mBlufiClient = null;
         }
-    }
-
-    private void negotiateSecurity() {
-        if (mBlufiClient != null) {
-            mBlufiClient.negotiateSecurity();
-        }
+        mConnected = false;
     }
 
     private void configure(String userName, String password) {
@@ -311,21 +254,9 @@ public class BlufiPlugin extends Plugin {
         }
     }
 
-    private void requestDeviceStatus() {
-        if (mBlufiClient != null) {
-            mBlufiClient.requestDeviceStatus();
-        }
-    }
-
     private void requestDeviceVersion() {
         if (mBlufiClient != null) {
             mBlufiClient.requestDeviceVersion();
-        }
-    }
-
-    private void requestDeviceWifiScan() {
-        if (mBlufiClient != null) {
-            mBlufiClient.requestDeviceWifiScan();
         }
     }
 
@@ -341,6 +272,18 @@ public class BlufiPlugin extends Plugin {
 
     private void onGattDisconnected() {
         mConnected = false;
+        if (scanWifiCall != null) {
+            scanWifiCall.reject("Disconnected");
+            scanWifiCall = null;
+        }
+        if (setWifiCall != null) {
+            setWifiCall.reject("Disconnected");
+            setWifiCall = null;
+        }
+        if (networkStatusCall != null) {
+            networkStatusCall.reject("Disconnected");
+            networkStatusCall = null;
+        }
     }
 
     private void onGattServiceCharacteristicDiscovered() {
@@ -456,6 +399,19 @@ public class BlufiPlugin extends Plugin {
 
         @Override
         public void onPostConfigureParams(BlufiClient client, int status) {
+            if (setWifiCall != null) {
+                JSObject ret = new JSObject();
+                if (status == STATUS_SUCCESS) {
+                    ret.put("success", true);
+                    ret.put("message", "Configuration sent");
+                } else {
+                    ret.put("success", false);
+                    ret.put("message", "Failed to send configuration");
+                }
+                setWifiCall.resolve(ret);
+                setWifiCall = null;
+            }
+            
             if (status == STATUS_SUCCESS) {
                 notifyListeners("onBlufiEvent", makeJson("configure_params", "1"));
             } else {
@@ -465,6 +421,19 @@ public class BlufiPlugin extends Plugin {
 
         @Override
         public void onDeviceStatusResponse(BlufiClient client, int status, BlufiStatusResponse response) {
+            if (networkStatusCall != null) {
+                JSObject ret = new JSObject();
+                if (status == STATUS_SUCCESS) {
+                    ret.put("connected", response.isStaConnectWifi());
+                    ret.put("status", "Connected"); // Simplified
+                } else {
+                    ret.put("connected", false);
+                    ret.put("status", "Error");
+                }
+                networkStatusCall.resolve(ret);
+                networkStatusCall = null;
+            }
+
             if (status == STATUS_SUCCESS) {
                 notifyListeners("onBlufiEvent", makeJson("device_status", "1"));
                 if (response.isStaConnectWifi()) {
@@ -479,6 +448,19 @@ public class BlufiPlugin extends Plugin {
 
         @Override
         public void onDeviceScanResult(BlufiClient client, int status, List<BlufiScanResult> results) {
+            if (scanWifiCall != null) {
+                JSObject ret = new JSObject();
+                JSONArray list = new JSONArray();
+                if (status == STATUS_SUCCESS) {
+                    for (BlufiScanResult scanResult : results) {
+                        list.put(scanResult.getSsid());
+                    }
+                }
+                ret.put("list", list);
+                scanWifiCall.resolve(ret);
+                scanWifiCall = null;
+            }
+
             if (status == STATUS_SUCCESS) {
                 for (BlufiScanResult scanResult : results) {
                     notifyListeners("onBlufiEvent", makeWifiInfoJson(scanResult.getSsid(), scanResult.getRssi()));
@@ -618,6 +600,18 @@ public class BlufiPlugin extends Plugin {
 
             if (scanResult.getDevice().getName() != null) {
                 mDeviceMap.put(scanResult.getDevice().getAddress(), scanResult);
+                // Add to list if not already present (by address)
+                boolean exists = false;
+                for (ScanResult r : mBleList) {
+                    if (r.getDevice().getAddress().equals(scanResult.getDevice().getAddress())) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    mBleList.add(scanResult);
+                }
+                
                 notifyListeners("onBlufiEvent", makeScanDeviceJson(
                     scanResult.getDevice().getAddress(),
                     scanResult.getDevice().getName(),

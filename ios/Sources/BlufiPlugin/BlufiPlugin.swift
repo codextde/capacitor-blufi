@@ -7,22 +7,15 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "BlufiPlugin"
     public let jsName = "Blufi"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "getPlatformVersion", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "scanDeviceInfo", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "stopScan", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "connectPeripheral", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "requestCloseConnection", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "negotiateSecurity", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "requestDeviceVersion", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "configProvision", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "requestDeviceStatus", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "requestDeviceScan", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "postCustomData", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startScan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stopScan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "connectToDevice", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setWifi", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "disconnectFromDevice", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "resetPlugin", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getDeviceInfo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "scanWifi", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getDeviceInfo", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "setWifi", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getNetworkStatus", returnType: CAPPluginReturnPromise)
     ]
 
     private var implementation: BlufiImplementation?
@@ -32,97 +25,54 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
         implementation = BlufiImplementation(plugin: self)
     }
 
-    @objc func getPlatformVersion(_ call: CAPPluginCall) {
-        let version = "iOS " + UIDevice.current.systemVersion
-        call.resolve(["version": version])
-    }
-
-    @objc func scanDeviceInfo(_ call: CAPPluginCall) {
-        let filter = call.getString("filter")
-        implementation?.scanDeviceInfo(filter: filter)
-        call.resolve(["success": true])
+    @objc func startScan(_ call: CAPPluginCall) {
+        implementation?.startScan()
+        call.resolve()
     }
 
     @objc func stopScan(_ call: CAPPluginCall) {
-        implementation?.stopScan()
-        call.resolve()
-    }
-
-    @objc func connectPeripheral(_ call: CAPPluginCall) {
-        guard let peripheralId = call.getString("peripheral") else {
-            call.resolve(["success": false])
-            return
-        }
-
-        implementation?.connectPeripheral(peripheralId: peripheralId)
-        call.resolve(["success": true])
-    }
-
-    @objc func requestCloseConnection(_ call: CAPPluginCall) {
-        implementation?.requestCloseConnection()
-        call.resolve()
-    }
-
-    @objc func negotiateSecurity(_ call: CAPPluginCall) {
-        implementation?.negotiateSecurity()
-        call.resolve()
-    }
-
-    @objc func requestDeviceVersion(_ call: CAPPluginCall) {
-        implementation?.requestDeviceVersion()
-        call.resolve()
-    }
-
-    @objc func configProvision(_ call: CAPPluginCall) {
-        guard let username = call.getString("username"),
-              let password = call.getString("password") else {
-            call.reject("Missing username or password")
-            return
-        }
-
-        implementation?.configProvision(ssid: username, password: password)
-        call.resolve()
-    }
-
-    @objc func requestDeviceStatus(_ call: CAPPluginCall) {
-        implementation?.requestDeviceStatus()
-        call.resolve()
-    }
-
-    @objc func requestDeviceScan(_ call: CAPPluginCall) {
-        implementation?.requestDeviceScan()
-        call.resolve()
-    }
-
-    @objc func postCustomData(_ call: CAPPluginCall) {
-        guard let customData = call.getString("customData") else {
-            call.reject("Missing customData")
-            return
-        }
-
-        implementation?.postCustomData(data: customData)
-        call.resolve()
-    }
-
-    // Simplified API methods
-    @objc func startScan(_ call: CAPPluginCall) {
-        let filter = call.getString("filter")
-        implementation?.scanDeviceInfo(filter: filter)
-        call.resolve(["success": true])
+        let results = implementation?.stopScan() ?? []
+        call.resolve([
+            "scanResult": results
+        ])
     }
 
     @objc func connectToDevice(_ call: CAPPluginCall) {
-        guard let address = call.getString("address") else {
-            call.resolve(["success": false])
+        guard let deviceId = call.getString("deviceId") else {
+            call.reject("Missing deviceId")
             return
         }
 
-        implementation?.connectPeripheral(peripheralId: address)
+        implementation?.connect(deviceId: deviceId)
         // Auto-negotiate security after connection
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.implementation?.negotiateSecurity()
         }
-        call.resolve(["success": true])
+        call.resolve()
+    }
+
+    @objc func disconnectFromDevice(_ call: CAPPluginCall) {
+        implementation?.disconnect()
+        call.resolve()
+    }
+
+    @objc func resetPlugin(_ call: CAPPluginCall) {
+        implementation?.disconnect()
+        implementation?.reset()
+        call.resolve()
+    }
+
+    @objc func getDeviceInfo(_ call: CAPPluginCall) {
+        implementation?.requestDeviceVersion()
+        call.resolve()
+    }
+
+    @objc func scanWifi(_ call: CAPPluginCall) {
+        implementation?.scanWifi(completion: { list in
+            call.resolve(["list": list])
+        }, error: { msg in
+            call.reject(msg)
+        })
     }
 
     @objc func setWifi(_ call: CAPPluginCall) {
@@ -132,20 +82,23 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        implementation?.configProvision(ssid: ssid, password: password)
-        call.resolve()
+        implementation?.setWifi(ssid: ssid, password: password, completion: { success, message in
+            call.resolve([
+                "success": success,
+                "message": message
+            ])
+        })
     }
 
-    @objc func scanWifi(_ call: CAPPluginCall) {
-        implementation?.requestDeviceScan()
-        call.resolve()
-    }
-
-    @objc func getDeviceInfo(_ call: CAPPluginCall) {
-        // Request both version and status
-        implementation?.requestDeviceVersion()
-        implementation?.requestDeviceStatus()
-        call.resolve()
+    @objc func getNetworkStatus(_ call: CAPPluginCall) {
+        implementation?.getNetworkStatus(completion: { connected, status in
+            call.resolve([
+                "connected": connected,
+                "status": status
+            ])
+        }, error: { msg in
+            call.reject(msg)
+        })
     }
 
     func notifyBlufiEvent(_ event: [String: Any]) {

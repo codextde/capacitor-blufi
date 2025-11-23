@@ -237,20 +237,17 @@ enum {
 }
 
 - (void)gattWrite:(NSData *)data {
-    if (_peripheral != nil && _writeChar != nil) {
-        [_writeCondition lock];
-        if (![self isConnected]) {
-            [_writeCondition unlock];
-            return;
-        }
-        if (DBUG) {
-            NSLog(@"Blufi GattWrite Length: %lu,  %@", (unsigned long)data.length, data);
-        }
-        [_peripheral writeValue:data forCharacteristic:_writeChar type:CBCharacteristicWriteWithResponse];
-        [_writeCondition wait];
+    [_writeCondition lock];
+    if (![self isConnected]) {
         [_writeCondition unlock];
+        return;
     }
-
+    if (DBUG) {
+        NSLog(@"Blufi GattWrite Length: %lu,  %@", (unsigned long)data.length, data);
+    }
+    [_peripheral writeValue:data forCharacteristic:_writeChar type:CBCharacteristicWriteWithResponse];
+    [_writeCondition wait];
+    [_writeCondition unlock];
     return;
 }
 
@@ -1038,12 +1035,7 @@ enum {
 }
 
 - (void)centralManagerDidUpdateState:(nonnull CBCentralManager *)central {
-    if (@available(iOS 10.0, *)) {
-        _blePowerOn = central.state == CBManagerStatePoweredOn;
-    } else {
-        _blePowerOn = central.state == CBCentralManagerStatePoweredOn;
-        // Fallback on earlier versions
-    }
+    _blePowerOn = central.state == CBManagerStatePoweredOn;
     if (_blePowerOn) {
         NSLog(@"Blufi Client BLE state pwoered on");
         if (_bleConnectMark) {
