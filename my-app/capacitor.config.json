@@ -1,0 +1,10 @@
+{
+  "appId": "com.example.app",
+  "appName": "blufi-test",
+  "webDir": "dist",
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false
+    }
+  }
+}
