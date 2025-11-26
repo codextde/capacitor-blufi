@@ -60,7 +60,7 @@ class BlufiClientImpl implements BlufiParameter {
     private static final String DH_G = "2";
     private static final String AES_TRANSFORMATION = "AES/CFB/NoPadding";
 
-    private boolean mPrintDebug = BuildConfig.DEBUG;
+    private boolean mPrintDebug = false;
 
     private BlufiClient mClient;
 

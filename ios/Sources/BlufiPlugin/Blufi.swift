@@ -31,14 +31,14 @@ import CoreBluetooth
         peripheralDictionary.removeAll()
         
         espFBYBleHelper?.startScan { [weak self] device in
-            guard let self = self, let device = device else { return }
+            guard let self = self else { return }
 
-            if device.name == nil {
+            if device.name.isEmpty {
                 return
             }
 
             if let filterContent = self.filterContent, !filterContent.isEmpty {
-                if let name = device.name, !name.lowercased().contains(filterContent.lowercased()) {
+                if !device.name.lowercased().contains(filterContent.lowercased()) {
                     return
                 }
             }
@@ -58,7 +58,7 @@ import CoreBluetooth
                 self.scanResults.append(result)
             }
             
-            self.notifyEvent(self.makeScanDeviceJson(address: device.uuid.uuidString, name: device.name ?? "", rssi: device.rssi))
+            self.notifyEvent(self.makeScanDeviceJson(address: device.uuid.uuidString, name: device.name ?? "", rssi: Int(device.rssi)))
         }
     }
 
@@ -69,12 +69,11 @@ import CoreBluetooth
     }
 
     func connect(deviceId: String) {
-        guard let peripheral = peripheralDictionary[deviceId] else {
-            return
-        }
-
         self.connected = false
-        self.device = peripheral
+
+        if let peripheral = peripheralDictionary[deviceId] {
+            self.device = peripheral
+        }
 
         if blufiClient != nil {
             blufiClient?.close()
@@ -85,7 +84,7 @@ import CoreBluetooth
         blufiClient?.centralManagerDelete = self
         blufiClient?.peripheralDelegate = self
         blufiClient?.blufiDelegate = self
-        blufiClient?.connect(peripheral.uuid.uuidString)
+        blufiClient?.connect(deviceId)
     }
 
     func disconnect() {
@@ -283,7 +282,7 @@ import CoreBluetooth
     public func blufi(_ client: BlufiClient, didReceiveDeviceStatusResponse response: BlufiStatusResponse?, status: BlufiStatusCode) {
         if let completion = networkStatusCompletion {
             if status == StatusSuccess, let response = response {
-                completion(response.isStaConnect(toWiFi: ()), "Connected")
+                completion(response.isStaConnectWiFi(), "Connected")
             } else {
                 completion(false, "Error")
             }
@@ -294,7 +293,7 @@ import CoreBluetooth
         if status == StatusSuccess, let response = response {
             notifyEvent(makeJson(command: "device_status", data: "1"))
 
-            if response.isStaConnect(toWiFi: ()) {
+            if response.isStaConnectWiFi() {
                 notifyEvent(makeJson(command: "device_wifi_connect", data: "1"))
             } else {
                 notifyEvent(makeJson(command: "device_wifi_connect", data: "0"))
@@ -309,9 +308,7 @@ import CoreBluetooth
             var list: [String] = []
             if status == StatusSuccess, let scanResults = scanResults {
                 for response in scanResults {
-                    if let ssid = response.ssid {
-                        list.append(ssid)
-                    }
+                    list.append(response.ssid)
                 }
             }
             completion(list)
@@ -321,7 +318,7 @@ import CoreBluetooth
         
         if status == StatusSuccess, let scanResults = scanResults {
             for response in scanResults {
-                notifyEvent(makeWifiInfoJson(ssid: response.ssid ?? "", rssi: Int(response.rssi)))
+                notifyEvent(makeWifiInfoJson(ssid: response.ssid, rssi: Int(response.rssi)))
             }
         } else {
             notifyEvent(makeJson(command: "wifi_info", data: "0"))

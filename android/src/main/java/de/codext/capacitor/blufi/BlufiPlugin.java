@@ -151,9 +151,28 @@ public class BlufiPlugin extends Plugin {
     @PluginMethod
     public void connectToDevice(PluginCall call) {
         String deviceId = call.getString("deviceId");
-        if (deviceId != null && mDeviceMap.containsKey(deviceId)) {
-            connectDevice(mDeviceMap.get(deviceId).getDevice());
-            // Auto-negotiate security after connection
+        if (deviceId == null || deviceId.isEmpty()) {
+            call.reject("Device ID is required");
+            return;
+        }
+
+        BluetoothDevice device = null;
+
+        if (mDeviceMap.containsKey(deviceId)) {
+            device = mDeviceMap.get(deviceId).getDevice();
+        } else {
+            try {
+                BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+                if (adapter != null) {
+                    device = adapter.getRemoteDevice(deviceId);
+                }
+            } catch (IllegalArgumentException e) {
+                mLog.e("Invalid device address: " + deviceId);
+            }
+        }
+
+        if (device != null) {
+            connectDevice(device);
             handler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -164,7 +183,7 @@ public class BlufiPlugin extends Plugin {
             }, 1000);
             call.resolve();
         } else {
-            call.reject("Device not found");
+            call.reject("Device not found or invalid address");
         }
     }
 
@@ -352,8 +371,17 @@ public class BlufiPlugin extends Plugin {
     private class BlufiCallbackMain extends BlufiCallback {
         @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
         @Override
-        public void onGattPrepared(BlufiClient client, BluetoothGatt gatt, BluetoothGattService service,
-                                   BluetoothGattCharacteristic writeChar, BluetoothGattCharacteristic notifyChar) {
+        public void onGattPrepared(BlufiClient client, int status, BluetoothGatt gatt) {
+            BluetoothGattService service = null;
+            BluetoothGattCharacteristic writeChar = null;
+            BluetoothGattCharacteristic notifyChar = null;
+            if (gatt != null) {
+                service = gatt.getService(BlufiParameter.UUID_SERVICE);
+                if (service != null) {
+                    writeChar = service.getCharacteristic(BlufiParameter.UUID_WRITE_CHARACTERISTIC);
+                    notifyChar = service.getCharacteristic(BlufiParameter.UUID_NOTIFICATION_CHARACTERISTIC);
+                }
+            }
             if (service == null) {
                 mLog.w("Discover service failed");
                 gatt.disconnect();
@@ -519,7 +547,7 @@ public class BlufiPlugin extends Plugin {
 
             return JSObject.fromJSONObject(json);
         } catch (JSONException e) {
-            mLog.e("Error creating JSON", e);
+            mLog.e("Error creating JSON: " + e.getMessage());
             return new JSObject();
         }
     }
@@ -538,7 +566,7 @@ public class BlufiPlugin extends Plugin {
 
             return JSObject.fromJSONObject(json);
         } catch (JSONException e) {
-            mLog.e("Error creating scan device JSON", e);
+            mLog.e("Error creating scan device JSON: " + e.getMessage());
             return new JSObject();
         }
     }
@@ -562,7 +590,7 @@ public class BlufiPlugin extends Plugin {
 
             return JSObject.fromJSONObject(json);
         } catch (JSONException e) {
-            mLog.e("Error creating wifi info JSON", e);
+            mLog.e("Error creating wifi info JSON: " + e.getMessage());
             return new JSObject();
         }
     }

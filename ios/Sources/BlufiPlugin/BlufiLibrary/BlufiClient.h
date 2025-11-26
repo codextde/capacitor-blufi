@@ -1,3 +1,6 @@
+#ifndef BlufiClient_h
+#define BlufiClient_h
+
 //
 //  BlufiClient.h
 //  EspBlufi
@@ -253,3 +256,5 @@ typedef enum {
 @end
 
 NS_ASSUME_NONNULL_END
+
+#endif

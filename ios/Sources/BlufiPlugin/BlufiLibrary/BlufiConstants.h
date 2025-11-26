@@ -6,6 +6,9 @@
 //  Copyright © 2020 espressif. All rights reserved.
 //
 
+#ifndef BlufiConstants_h
+#define BlufiConstants_h
+
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -81,3 +84,5 @@ typedef uint32_t SubType;
 @end
 
 NS_ASSUME_NONNULL_END
+
+#endif /* BlufiConstants_h */

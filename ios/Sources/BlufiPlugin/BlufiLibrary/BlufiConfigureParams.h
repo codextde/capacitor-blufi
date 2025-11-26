@@ -1,3 +1,6 @@
+#ifndef BlufiConfigureParams_h
+#define BlufiConfigureParams_h
+
 //
 //  BlufiConfigureParams.h
 //  EspBlufi
@@ -28,3 +31,5 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
+
+#endif

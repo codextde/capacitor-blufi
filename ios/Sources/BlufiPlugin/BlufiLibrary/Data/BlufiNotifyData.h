@@ -1,3 +1,6 @@
+#ifndef BlufiNotifyData_h
+#define BlufiNotifyData_h
+
 //
 //  BlufiNotifyData.h
 //  EspBlufi
@@ -26,3 +29,5 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
+
+#endif

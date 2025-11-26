@@ -1,3 +1,6 @@
+#ifndef ESPFBYBLEHelper_h
+#define ESPFBYBLEHelper_h
+
 //
 //  ESPFBYBLEHelper.h
 //  EspBlufi
@@ -29,3 +32,5 @@ typedef void(^FBYBleDeviceBackBlock)(ESPPeripheral *device);
 @end
 
 NS_ASSUME_NONNULL_END
+
+#endif

@@ -1,6 +1,6 @@
 package de.codext.capacitor.blufi.response;
 
-import blufi.espressif.params.BlufiParameter;
+import de.codext.capacitor.blufi.params.BlufiParameter;
 
 public class BlufiStatusResponse {
     private int mOpMode = -1;
