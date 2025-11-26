@@ -182,6 +182,46 @@ enum {
     [_centralManager scanForPeripheralsWithServices:nil options:nil];
 }
 
+- (void)connectToPeripheral {
+    if (!_identifier) {
+        NSLog(@"Blufi connectToPeripheral: No identifier set");
+        return;
+    }
+
+    NSLog(@"Blufi attempting to retrieve peripheral with UUID: %@", _identifier);
+
+    NSArray<CBPeripheral *> *peripherals = [_centralManager retrievePeripheralsWithIdentifiers:@[_identifier]];
+
+    if (peripherals.count > 0) {
+        CBPeripheral *peripheral = peripherals[0];
+        NSLog(@"Blufi found peripheral via retrievePeripheralsWithIdentifiers: %@", peripheral.name);
+        _peripheral = peripheral;
+        _peripheral.delegate = self;
+        [_centralManager connectPeripheral:peripheral options:nil];
+    } else {
+        NSLog(@"Blufi peripheral not found via retrieve, trying connected peripherals...");
+        NSArray<CBPeripheral *> *connectedPeripherals = [_centralManager retrieveConnectedPeripheralsWithServices:@[[CBUUID UUIDWithString:UUID_SERVICE]]];
+
+        CBPeripheral *matchedPeripheral = nil;
+        for (CBPeripheral *peripheral in connectedPeripherals) {
+            if ([peripheral.identifier isEqual:_identifier]) {
+                matchedPeripheral = peripheral;
+                break;
+            }
+        }
+
+        if (matchedPeripheral) {
+            NSLog(@"Blufi found connected peripheral: %@", matchedPeripheral.name);
+            _peripheral = matchedPeripheral;
+            _peripheral.delegate = self;
+            [_centralManager connectPeripheral:matchedPeripheral options:nil];
+        } else {
+            NSLog(@"Blufi peripheral not found, falling back to scan...");
+            [self scanBLE];
+        }
+    }
+}
+
 - (void)connect:(NSString *)identifier {
     if (_closed) {
         @throw [[NSException alloc] initWithName:@"NSStateException" reason:@"The BlufiClient is closed" userInfo:nil];
@@ -189,8 +229,9 @@ enum {
     }
     [self clearConnection];
     _identifier = [[NSUUID alloc] initWithUUIDString:identifier];
+    NSLog(@"Blufi connect called with identifier: %@", identifier);
     if (_blePowerOn) {
-        [self scanBLE];
+        [self connectToPeripheral];
     } else {
         _bleConnectMark = YES;
     }
@@ -1037,10 +1078,10 @@ enum {
 - (void)centralManagerDidUpdateState:(nonnull CBCentralManager *)central {
     _blePowerOn = central.state == CBManagerStatePoweredOn;
     if (_blePowerOn) {
-        NSLog(@"Blufi Client BLE state pwoered on");
+        NSLog(@"Blufi Client BLE state powered on");
         if (_bleConnectMark) {
             _bleConnectMark = NO;
-            [self scanBLE];
+            [self connectToPeripheral];
         }
     }
     id delegate = _centralManagerDelete;

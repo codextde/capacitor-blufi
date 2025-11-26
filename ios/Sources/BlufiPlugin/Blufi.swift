@@ -69,21 +69,29 @@ import CoreBluetooth
     }
 
     func connect(deviceId: String) {
+        print("BlufiImplementation: connect called with deviceId: \(deviceId)")
         self.connected = false
 
         if let peripheral = peripheralDictionary[deviceId] {
+            print("BlufiImplementation: Found peripheral in dictionary")
             self.device = peripheral
+        } else {
+            print("BlufiImplementation: Peripheral NOT in dictionary, will connect directly by UUID")
         }
 
         if blufiClient != nil {
+            print("BlufiImplementation: Closing existing blufiClient")
             blufiClient?.close()
             blufiClient = nil
         }
 
+        print("BlufiImplementation: Creating new BlufiClient")
         blufiClient = BlufiClient()
         blufiClient?.centralManagerDelete = self
         blufiClient?.peripheralDelegate = self
         blufiClient?.blufiDelegate = self
+
+        print("BlufiImplementation: Calling blufiClient.connect(\(deviceId))")
         blufiClient?.connect(deviceId)
     }
 
@@ -208,48 +216,59 @@ import CoreBluetooth
     // MARK: - CBCentralManagerDelegate
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        print("BlufiImplementation: didConnect peripheral: \(peripheral.name ?? "Unknown") - \(peripheral.identifier.uuidString)")
         notifyEvent(makeJson(command: "peripheral_connect", data: "1"))
     }
 
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        print("BlufiImplementation: didFailToConnect peripheral: \(peripheral.name ?? "Unknown"), error: \(error?.localizedDescription ?? "nil")")
         notifyEvent(makeJson(command: "peripheral_connect", data: "0"))
         self.connected = false
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        print("BlufiImplementation: didDisconnectPeripheral: \(peripheral.name ?? "Unknown"), error: \(error?.localizedDescription ?? "nil")")
         disconnect() // Clean up
         notifyEvent(makeJson(command: "peripheral_disconnect", data: "1"))
         self.connected = false
     }
 
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        // Handle central manager state updates
+        print("BlufiImplementation: centralManagerDidUpdateState: \(central.state.rawValue)")
     }
 
     // MARK: - BlufiDelegate
 
     public func blufi(_ client: BlufiClient, gattPrepared status: BlufiStatusCode, service: CBService?, writeChar: CBCharacteristic?, notifyChar: CBCharacteristic?) {
+        print("BlufiImplementation: gattPrepared status: \(status.rawValue), service: \(service?.uuid.uuidString ?? "nil"), writeChar: \(writeChar?.uuid.uuidString ?? "nil"), notifyChar: \(notifyChar?.uuid.uuidString ?? "nil")")
         if status == StatusSuccess {
             self.connected = true
+            print("BlufiImplementation: GATT prepared successfully, connected = true")
             notifyEvent(makeJson(command: "blufi_connect_prepared", data: "1"))
         } else {
+            print("BlufiImplementation: GATT prepared FAILED")
             disconnect()
             if service == nil {
+                print("BlufiImplementation: service is nil")
                 notifyEvent(makeJson(command: "blufi_connect_prepared", data: "2"))
             } else if writeChar == nil {
+                print("BlufiImplementation: writeChar is nil")
                 notifyEvent(makeJson(command: "blufi_connect_prepared", data: "3"))
             } else if notifyChar == nil {
+                print("BlufiImplementation: notifyChar is nil")
                 notifyEvent(makeJson(command: "blufi_connect_prepared", data: "4"))
             }
         }
     }
 
     public func blufi(_ client: BlufiClient, didNegotiateSecurity status: BlufiStatusCode) {
-        print("Blufi didNegotiateSecurity \(status.rawValue)")
+        print("BlufiImplementation: didNegotiateSecurity status: \(status.rawValue)")
 
         if status == StatusSuccess {
+            print("BlufiImplementation: Security negotiation successful")
             notifyEvent(makeJson(command: "negotiate_security", data: "1"))
         } else {
+            print("BlufiImplementation: Security negotiation FAILED")
             notifyEvent(makeJson(command: "negotiate_security", data: "0"))
         }
     }
@@ -304,18 +323,21 @@ import CoreBluetooth
     }
 
     public func blufi(_ client: BlufiClient, didReceiveDeviceScanResponse scanResults: [BlufiScanResponse]?, status: BlufiStatusCode) {
+        print("BlufiImplementation: didReceiveDeviceScanResponse status: \(status.rawValue), results count: \(scanResults?.count ?? 0)")
         if let completion = scanWifiCompletion {
             var list: [String] = []
             if status == StatusSuccess, let scanResults = scanResults {
                 for response in scanResults {
+                    print("BlufiImplementation: WiFi network: \(response.ssid) (RSSI: \(response.rssi))")
                     list.append(response.ssid)
                 }
             }
+            print("BlufiImplementation: Calling scanWifiCompletion with \(list.count) networks")
             completion(list)
             scanWifiCompletion = nil
             scanWifiError = nil
         }
-        
+
         if status == StatusSuccess, let scanResults = scanResults {
             for response in scanResults {
                 notifyEvent(makeWifiInfoJson(ssid: response.ssid, rssi: Int(response.rssi)))
