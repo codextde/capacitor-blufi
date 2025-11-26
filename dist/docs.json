@@ -1,0 +1,257 @@
+{
+  "api": {
+    "name": "BlufiPlugin",
+    "slug": "blufiplugin",
+    "docs": "",
+    "tags": [],
+    "methods": [
+      {
+        "name": "startScan",
+        "signature": "() => Promise<void>",
+        "parameters": [],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "startscan"
+      },
+      {
+        "name": "stopScan",
+        "signature": "() => Promise<{ scanResult: ScanResultItem[]; }>",
+        "parameters": [],
+        "returns": "Promise<{ scanResult: ScanResultItem[]; }>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [
+          "ScanResultItem"
+        ],
+        "slug": "stopscan"
+      },
+      {
+        "name": "connectToDevice",
+        "signature": "(options: { deviceId: string; }) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "{ deviceId: string; }"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "connecttodevice"
+      },
+      {
+        "name": "disconnectFromDevice",
+        "signature": "() => Promise<void>",
+        "parameters": [],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "disconnectfromdevice"
+      },
+      {
+        "name": "resetPlugin",
+        "signature": "() => Promise<void>",
+        "parameters": [],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "resetplugin"
+      },
+      {
+        "name": "getDeviceInfo",
+        "signature": "() => Promise<void>",
+        "parameters": [],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "getdeviceinfo"
+      },
+      {
+        "name": "scanWifi",
+        "signature": "() => Promise<WifiListResult>",
+        "parameters": [],
+        "returns": "Promise<WifiListResult>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [
+          "WifiListResult"
+        ],
+        "slug": "scanwifi"
+      },
+      {
+        "name": "setWifi",
+        "signature": "(options: { ssid: string; password: string; }) => Promise<WifiConnectResult>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "{ ssid: string; password: string; }"
+          }
+        ],
+        "returns": "Promise<WifiConnectResult>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [
+          "WifiConnectResult"
+        ],
+        "slug": "setwifi"
+      },
+      {
+        "name": "getNetworkStatus",
+        "signature": "() => Promise<NetworkStatusResult>",
+        "parameters": [],
+        "returns": "Promise<NetworkStatusResult>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [
+          "NetworkStatusResult"
+        ],
+        "slug": "getnetworkstatus"
+      },
+      {
+        "name": "addListener",
+        "signature": "(eventName: 'onBlufiEvent', listenerFunc: (event: any) => void) => Promise<PluginListenerHandle>",
+        "parameters": [
+          {
+            "name": "eventName",
+            "docs": "",
+            "type": "'onBlufiEvent'"
+          },
+          {
+            "name": "listenerFunc",
+            "docs": "",
+            "type": "(event: any) => void"
+          }
+        ],
+        "returns": "Promise<PluginListenerHandle>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [
+          "PluginListenerHandle"
+        ],
+        "slug": "addlisteneronblufievent-"
+      }
+    ],
+    "properties": []
+  },
+  "interfaces": [
+    {
+      "name": "ScanResultItem",
+      "slug": "scanresultitem",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "name",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "rssi",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "number"
+        },
+        {
+          "name": "address",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "WifiListResult",
+      "slug": "wifilistresult",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "list",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string[]"
+        }
+      ]
+    },
+    {
+      "name": "WifiConnectResult",
+      "slug": "wificonnectresult",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "success",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "boolean"
+        },
+        {
+          "name": "message",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "NetworkStatusResult",
+      "slug": "networkstatusresult",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "connected",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "boolean"
+        },
+        {
+          "name": "status",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "PluginListenerHandle",
+      "slug": "pluginlistenerhandle",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "remove",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "() => Promise<void>"
+        }
+      ]
+    }
+  ],
+  "enums": [],
+  "typeAliases": [],
+  "pluginConfigs": []
+}
