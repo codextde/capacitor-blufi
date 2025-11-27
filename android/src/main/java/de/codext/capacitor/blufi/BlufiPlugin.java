@@ -210,10 +210,18 @@ public class BlufiPlugin extends Plugin {
 
     @PluginMethod
     public void scanWifi(PluginCall call) {
+        mLog.d("scanWifi called, mBlufiClient=" + (mBlufiClient != null ? "exists" : "null") + ", mConnected=" + mConnected);
         if (mBlufiClient == null) {
+            mLog.e("scanWifi failed: mBlufiClient is null");
             call.reject("Not connected");
             return;
         }
+        if (!mConnected) {
+            mLog.e("scanWifi failed: not connected");
+            call.reject("Not connected (mConnected=false)");
+            return;
+        }
+        mLog.d("scanWifi: requesting device WiFi scan...");
         scanWifiCall = call;
         mBlufiClient.requestDeviceWifiScan();
     }
@@ -418,9 +426,12 @@ public class BlufiPlugin extends Plugin {
 
         @Override
         public void onNegotiateSecurityResult(BlufiClient client, int status) {
+            mLog.d("onNegotiateSecurityResult: status=" + status + " (SUCCESS=" + STATUS_SUCCESS + ")");
             if (status == STATUS_SUCCESS) {
+                mLog.d("onNegotiateSecurityResult: Security negotiation SUCCESSFUL - device ready for encrypted operations");
                 notifyListeners("onBlufiEvent", makeJson("negotiate_security", "1"));
             } else {
+                mLog.e("onNegotiateSecurityResult: Security negotiation FAILED with status=" + status);
                 notifyListeners("onBlufiEvent", makeJson("negotiate_security", "0"));
             }
         }
@@ -476,17 +487,25 @@ public class BlufiPlugin extends Plugin {
 
         @Override
         public void onDeviceScanResult(BlufiClient client, int status, List<BlufiScanResult> results) {
+            mLog.d("onDeviceScanResult called, status=" + status + ", results count=" + (results != null ? results.size() : 0));
             if (scanWifiCall != null) {
                 JSObject ret = new JSObject();
                 JSONArray list = new JSONArray();
                 if (status == STATUS_SUCCESS) {
+                    mLog.d("onDeviceScanResult: scan successful, building result list...");
                     for (BlufiScanResult scanResult : results) {
+                        mLog.d("onDeviceScanResult: found SSID=" + scanResult.getSsid() + ", RSSI=" + scanResult.getRssi());
                         list.put(scanResult.getSsid());
                     }
+                } else {
+                    mLog.e("onDeviceScanResult: scan failed with status=" + status);
                 }
                 ret.put("list", list);
+                mLog.d("onDeviceScanResult: resolving call with " + list.length() + " networks");
                 scanWifiCall.resolve(ret);
                 scanWifiCall = null;
+            } else {
+                mLog.w("onDeviceScanResult: scanWifiCall is null, cannot return result");
             }
 
             if (status == STATUS_SUCCESS) {

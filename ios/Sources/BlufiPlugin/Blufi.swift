@@ -11,6 +11,7 @@ import CoreBluetooth
     private var device: ESPPeripheral?
     private var blufiClient: BlufiClient?
     private var connected: Bool = false
+    private var securityNegotiated: Bool = false
 
     // Completion handlers
     private var scanWifiCompletion: (([String]) -> Void)?
@@ -71,6 +72,7 @@ import CoreBluetooth
     func connect(deviceId: String) {
         print("BlufiImplementation: connect called with deviceId: \(deviceId)")
         self.connected = false
+        self.securityNegotiated = false
 
         if let peripheral = peripheralDictionary[deviceId] {
             print("BlufiImplementation: Found peripheral in dictionary")
@@ -96,21 +98,24 @@ import CoreBluetooth
     }
 
     func disconnect() {
+        print("BlufiImplementation: disconnect called")
         if blufiClient != nil {
             blufiClient?.requestCloseConnection()
             blufiClient?.close()
             blufiClient = nil
         }
         connected = false
-        
+        securityNegotiated = false
+
         // Reject pending calls
         scanWifiError?("Disconnected")
         scanWifiCompletion = nil
         scanWifiError = nil
-        
+
         networkStatusError?("Disconnected")
         networkStatusCompletion = nil
         networkStatusError = nil
+        print("BlufiImplementation: disconnect complete")
     }
     
     func reset() {
@@ -154,13 +159,28 @@ import CoreBluetooth
     }
     
     func scanWifi(completion: @escaping ([String]) -> Void, error: @escaping (String) -> Void) {
-        if blufiClient != nil && connected {
-            self.scanWifiCompletion = completion
-            self.scanWifiError = error
-            blufiClient?.requestDeviceScan()
-        } else {
-            error("Not connected")
+        print("BlufiImplementation: scanWifi called, blufiClient=\(blufiClient != nil), connected=\(connected), securityNegotiated=\(securityNegotiated)")
+
+        if blufiClient == nil {
+            print("BlufiImplementation: scanWifi failed - blufiClient is nil")
+            error("Not connected (blufiClient is nil)")
+            return
         }
+
+        if !connected {
+            print("BlufiImplementation: scanWifi failed - not connected")
+            error("Not connected")
+            return
+        }
+
+        if !securityNegotiated {
+            print("BlufiImplementation: scanWifi warning - security not yet negotiated, proceeding anyway...")
+        }
+
+        print("BlufiImplementation: scanWifi requesting device scan...")
+        self.scanWifiCompletion = completion
+        self.scanWifiError = error
+        blufiClient?.requestDeviceScan()
     }
     
     func getNetworkStatus(completion: @escaping (Bool, String) -> Void, error: @escaping (String) -> Void) {
@@ -265,9 +285,11 @@ import CoreBluetooth
         print("BlufiImplementation: didNegotiateSecurity status: \(status.rawValue)")
 
         if status == StatusSuccess {
-            print("BlufiImplementation: Security negotiation successful")
+            self.securityNegotiated = true
+            print("BlufiImplementation: Security negotiation successful - device ready for operations")
             notifyEvent(makeJson(command: "negotiate_security", data: "1"))
         } else {
+            self.securityNegotiated = false
             print("BlufiImplementation: Security negotiation FAILED")
             notifyEvent(makeJson(command: "negotiate_security", data: "0"))
         }

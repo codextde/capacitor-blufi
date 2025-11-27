@@ -675,20 +675,21 @@ class BlufiClientImpl implements BlufiParameter {
     }
 
     private void parseWifiScanList(byte[] data) {
+        Log.d(TAG, "parseWifiScanList: received data length=" + (data != null ? data.length : 0));
         List<BlufiScanResult> result = new LinkedList<>();
 
         ByteArrayInputStream dataReader = new ByteArrayInputStream(data);
         while (dataReader.available() > 0) {
             int length = dataReader.read() & 0xff;
             if (length < 1) {
-                Log.w(TAG, "Parse WifiScan invalid length");
+                Log.w(TAG, "parseWifiScanList: invalid length=" + length);
                 break;
             }
             byte rssi = (byte) dataReader.read();
             byte[] ssidBytes = new byte[length - 1];
             int ssidRead = dataReader.read(ssidBytes, 0, ssidBytes.length);
             if (ssidRead != ssidBytes.length) {
-                Log.w(TAG, "Parse WifiScan parse ssid failed");
+                Log.w(TAG, "parseWifiScanList: parse ssid failed, expected=" + ssidBytes.length + ", read=" + ssidRead);
                 break;
             }
 
@@ -698,8 +699,10 @@ class BlufiClientImpl implements BlufiParameter {
             String ssid = new String(ssidBytes);
             sr.setSsid(ssid);
             result.add(sr);
+            Log.d(TAG, "parseWifiScanList: parsed SSID=" + ssid + ", RSSI=" + rssi);
         }
 
+        Log.d(TAG, "parseWifiScanList: total networks found=" + result.size());
         onDeviceScanResult(BlufiCallback.STATUS_SUCCESS, result);
     }
 
@@ -1112,10 +1115,13 @@ class BlufiClientImpl implements BlufiParameter {
     }
 
     private void __requestDeviceWifiScan() {
+        Log.d(TAG, "__requestDeviceWifiScan: starting, mEncrypted=" + mEncrypted + ", mChecksum=" + mChecksum + ", connected=" + isConnected());
         int type = getTypeValue(Type.Ctrl.PACKAGE_VALUE, Type.Ctrl.SUBTYPE_GET_WIFI_LIST);
         boolean request;
         try {
+            Log.d(TAG, "__requestDeviceWifiScan: posting request...");
             request = post(mEncrypted, mChecksum, mRequireAck, type, null);
+            Log.d(TAG, "__requestDeviceWifiScan: post result=" + request);
         } catch (InterruptedException e) {
             Log.w(TAG, "post requestDeviceWifiScan interrupted");
             request = false;
@@ -1123,7 +1129,10 @@ class BlufiClientImpl implements BlufiParameter {
         }
 
         if (!request) {
+            Log.e(TAG, "__requestDeviceWifiScan: request failed, returning empty list");
             onDeviceScanResult(BlufiCallback.CODE_WRITE_DATA_FAILED, Collections.emptyList());
+        } else {
+            Log.d(TAG, "__requestDeviceWifiScan: request sent successfully, waiting for device response...");
         }
     }
 
