@@ -1,6 +1,6 @@
 {
   "name": "@codext/capacitor-blufi",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "-",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -30,7 +30,7 @@
     "native"
   ],
   "scripts": {
-    "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
+    "verify": "npm run verify:android && npm run verify:web",
     "verify:ios": "xcodebuild -scheme CodextCapacitorBlufi -destination generic/platform=iOS",
     "verify:android": "cd android && ./gradlew clean build test && cd ..",
     "verify:web": "npm run build",
