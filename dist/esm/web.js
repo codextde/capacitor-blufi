@@ -24,6 +24,9 @@ export class BlufiWeb extends WebPlugin {
     async setWifi(_options) {
         throw this.unavailable('BluFi is not available on web');
     }
+    async disconnectWifi() {
+        throw this.unavailable('BluFi is not available on web');
+    }
     async getNetworkStatus() {
         throw this.unavailable('BluFi is not available on web');
     }

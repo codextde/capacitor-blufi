@@ -5,6 +5,7 @@ import type {
   ScanResultItem,
   WifiListResult,
   WifiConnectResult,
+  WifiDisconnectResult,
   NetworkStatusResult,
 } from './definitions';
 
@@ -38,6 +39,10 @@ export class BlufiWeb extends WebPlugin implements BlufiPlugin {
   }
 
   async setWifi(_options: { ssid: string; password: string }): Promise<WifiConnectResult> {
+    throw this.unavailable('BluFi is not available on web');
+  }
+
+  async disconnectWifi(): Promise<WifiDisconnectResult> {
     throw this.unavailable('BluFi is not available on web');
   }
 

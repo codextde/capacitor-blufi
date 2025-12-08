@@ -120,6 +120,14 @@ public class BlufiClient {
     }
 
     /**
+     * Request device to disconnect from current WiFi network.
+     * This stops any ongoing connection attempts.
+     */
+    public void requestDisconnectWifi() {
+        mImpl.requestDisconnectWifi();
+    }
+
+    /**
      * Configure the device to a station or soft AP. The posted result will be notified in
      * {@link BlufiCallback#onPostConfigureParams(BlufiClient, int)}
      *

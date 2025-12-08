@@ -230,6 +230,15 @@ class BlufiClientImpl implements BlufiParameter {
         });
     }
 
+    void requestDisconnectWifi() {
+        mThreadPool.submit(new ThrowableRunnable() {
+            @Override
+            void execute() {
+                __requestDisconnectWifi();
+            }
+        });
+    }
+
     void postCustomData(final byte[] data) {
         mThreadPool.submit(new ThrowableRunnable() {
             @Override
@@ -1133,6 +1142,27 @@ class BlufiClientImpl implements BlufiParameter {
             onDeviceScanResult(BlufiCallback.CODE_WRITE_DATA_FAILED, Collections.emptyList());
         } else {
             Log.d(TAG, "__requestDeviceWifiScan: request sent successfully, waiting for device response...");
+        }
+    }
+
+    private void __requestDisconnectWifi() {
+        Log.d(TAG, "__requestDisconnectWifi: starting, mEncrypted=" + mEncrypted + ", mChecksum=" + mChecksum);
+        int type = getTypeValue(Type.Ctrl.PACKAGE_VALUE, Type.Ctrl.SUBTYPE_DISCONNECT_WIFI);
+        boolean request;
+        try {
+            Log.d(TAG, "__requestDisconnectWifi: posting request...");
+            request = post(mEncrypted, mChecksum, false, type, null);
+            Log.d(TAG, "__requestDisconnectWifi: post result=" + request);
+        } catch (InterruptedException e) {
+            Log.w(TAG, "post requestDisconnectWifi interrupted");
+            request = false;
+            Thread.currentThread().interrupt();
+        }
+
+        if (!request) {
+            Log.e(TAG, "__requestDisconnectWifi: request failed");
+        } else {
+            Log.d(TAG, "__requestDisconnectWifi: request sent successfully");
         }
     }
 

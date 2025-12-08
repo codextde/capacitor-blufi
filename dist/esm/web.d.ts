@@ -1,5 +1,5 @@
 import { WebPlugin } from '@capacitor/core';
-import type { BlufiPlugin, ScanResultItem, WifiListResult, WifiConnectResult, NetworkStatusResult } from './definitions';
+import type { BlufiPlugin, ScanResultItem, WifiListResult, WifiConnectResult, WifiDisconnectResult, NetworkStatusResult } from './definitions';
 export declare class BlufiWeb extends WebPlugin implements BlufiPlugin {
     startScan(): Promise<void>;
     stopScan(): Promise<{
@@ -16,5 +16,6 @@ export declare class BlufiWeb extends WebPlugin implements BlufiPlugin {
         ssid: string;
         password: string;
     }): Promise<WifiConnectResult>;
+    disconnectWifi(): Promise<WifiDisconnectResult>;
     getNetworkStatus(): Promise<NetworkStatusResult>;
 }

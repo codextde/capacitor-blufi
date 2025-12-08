@@ -15,6 +15,7 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getDeviceInfo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "scanWifi", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setWifi", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "disconnectWifi", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getNetworkStatus", returnType: CAPPluginReturnPromise)
     ]
 
@@ -43,11 +44,8 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
+        print("BlufiPlugin: connectToDevice called with deviceId: \(deviceId)")
         implementation?.connect(deviceId: deviceId)
-        // Auto-negotiate security after connection
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.implementation?.negotiateSecurity()
-        }
         call.resolve()
     }
 
@@ -83,6 +81,15 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         implementation?.setWifi(ssid: ssid, password: password, completion: { success, message in
+            call.resolve([
+                "success": success,
+                "message": message
+            ])
+        })
+    }
+
+    @objc func disconnectWifi(_ call: CAPPluginCall) {
+        implementation?.disconnectWifi(completion: { success, message in
             call.resolve([
                 "success": success,
                 "message": message

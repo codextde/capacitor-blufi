@@ -803,6 +803,21 @@ enum {
     }];
 }
 
+- (void)requestDisconnectWifi {
+    BOOL encrypted = _encrypted;
+    BOOL checksum = _checksum;
+    [_requestQueue addOperationWithBlock:^{
+        NSLog(@"Posting WiFi disconnect request");
+        Byte type = [self getTypeValueWithPackageType:PackageCtrl subType:CtrlSubTypeDisconnectWiFi];
+        BOOL posted = [self post:nil encrypt:encrypted checksum:checksum requireAck:false type:type];
+        if (!posted) {
+            NSLog(@"Post WiFi disconnect request failed");
+        } else {
+            NSLog(@"Post WiFi disconnect request success");
+        }
+    }];
+}
+
 - (void)postCustomData:(NSData *)data {
     BOOL encrypted = _encrypted;
     BOOL checksum = _checksum;

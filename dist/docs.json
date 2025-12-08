@@ -104,6 +104,18 @@
         "slug": "setwifi"
       },
       {
+        "name": "disconnectWifi",
+        "signature": "() => Promise<WifiDisconnectResult>",
+        "parameters": [],
+        "returns": "Promise<WifiDisconnectResult>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [
+          "WifiDisconnectResult"
+        ],
+        "slug": "disconnectwifi"
+      },
+      {
         "name": "getNetworkStatus",
         "signature": "() => Promise<NetworkStatusResult>",
         "parameters": [],
@@ -191,6 +203,29 @@
     {
       "name": "WifiConnectResult",
       "slug": "wificonnectresult",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "success",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "boolean"
+        },
+        {
+          "name": "message",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "WifiDisconnectResult",
+      "slug": "wifidisconnectresult",
       "docs": "",
       "tags": [],
       "methods": [],

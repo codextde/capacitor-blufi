@@ -21,6 +21,7 @@ npx cap sync
 * [`getDeviceInfo()`](#getdeviceinfo)
 * [`scanWifi()`](#scanwifi)
 * [`setWifi(...)`](#setwifi)
+* [`disconnectWifi()`](#disconnectwifi)
 * [`getNetworkStatus()`](#getnetworkstatus)
 * [`addListener('onBlufiEvent', ...)`](#addlisteneronblufievent-)
 * [Interfaces](#interfaces)
@@ -116,6 +117,17 @@ setWifi(options: { ssid: string; password: string; }) => Promise<WifiConnectResu
 --------------------
 
 
+### disconnectWifi()
+
+```typescript
+disconnectWifi() => Promise<WifiDisconnectResult>
+```
+
+**Returns:** <code>Promise&lt;<a href="#wifidisconnectresult">WifiDisconnectResult</a>&gt;</code>
+
+--------------------
+
+
 ### getNetworkStatus()
 
 ```typescript
@@ -163,6 +175,14 @@ addListener(eventName: 'onBlufiEvent', listenerFunc: (event: any) => void) => Pr
 
 
 #### WifiConnectResult
+
+| Prop          | Type                 |
+| ------------- | -------------------- |
+| **`success`** | <code>boolean</code> |
+| **`message`** | <code>string</code>  |
+
+
+#### WifiDisconnectResult
 
 | Prop          | Type                 |
 | ------------- | -------------------- |

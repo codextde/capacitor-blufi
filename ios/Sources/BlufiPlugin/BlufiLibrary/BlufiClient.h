@@ -109,6 +109,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)requestDeviceScan;
 
 /*!
+ * @method requestDisconnectWifi
+ *
+ * @discussion Request the device to disconnect from current WiFi network.
+ *             This stops any ongoing connection attempts.
+ */
+- (void)requestDisconnectWifi;
+
+/*!
  * @method configure:
  *
  * @discussion Configure the device to a station or soft AP.

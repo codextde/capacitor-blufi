@@ -20,6 +20,11 @@ export interface NetworkStatusResult {
   status: string;
 }
 
+export interface WifiDisconnectResult {
+  success: boolean;
+  message: string;
+}
+
 export interface BlufiPlugin {
   startScan(): Promise<void>;
   stopScan(): Promise<{ scanResult: ScanResultItem[] }>;
@@ -29,6 +34,7 @@ export interface BlufiPlugin {
   getDeviceInfo(): Promise<void>;
   scanWifi(): Promise<WifiListResult>;
   setWifi(options: { ssid: string; password: string }): Promise<WifiConnectResult>;
+  disconnectWifi(): Promise<WifiDisconnectResult>;
   getNetworkStatus(): Promise<NetworkStatusResult>;
 
   addListener(eventName: 'onBlufiEvent', listenerFunc: (event: any) => void): Promise<PluginListenerHandle>;

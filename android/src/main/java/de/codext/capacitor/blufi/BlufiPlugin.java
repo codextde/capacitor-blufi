@@ -239,6 +239,29 @@ public class BlufiPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void disconnectWifi(PluginCall call) {
+        mLog.d("disconnectWifi called, mBlufiClient=" + (mBlufiClient != null ? "exists" : "null") + ", mConnected=" + mConnected);
+        if (mBlufiClient == null) {
+            call.reject("Not connected");
+            return;
+        }
+        if (!mConnected) {
+            call.reject("Not connected (mConnected=false)");
+            return;
+        }
+        mLog.d("disconnectWifi: sending WiFi disconnect request...");
+        mBlufiClient.requestDisconnectWifi();
+
+        handler.postDelayed(() -> {
+            mLog.d("disconnectWifi: request sent");
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "WiFi disconnect request sent");
+            call.resolve(ret);
+        }, 1000);
+    }
+
+    @PluginMethod
     public void getNetworkStatus(PluginCall call) {
         if (mBlufiClient == null) {
             call.reject("Not connected");
