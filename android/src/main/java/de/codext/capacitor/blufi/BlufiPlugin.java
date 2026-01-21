@@ -486,8 +486,9 @@ public class BlufiPlugin extends Plugin {
             if (networkStatusCall != null) {
                 JSObject ret = new JSObject();
                 if (status == STATUS_SUCCESS) {
-                    ret.put("connected", response.isStaConnectWifi());
-                    ret.put("status", "Connected"); // Simplified
+                    boolean isConnected = response.isStaConnectWifi();
+                    ret.put("connected", isConnected);
+                    ret.put("status", isConnected ? "Connected" : "Disconnected");
                 } else {
                     ret.put("connected", false);
                     ret.put("status", "Error");
