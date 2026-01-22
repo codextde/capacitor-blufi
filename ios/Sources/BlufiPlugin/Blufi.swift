@@ -423,7 +423,8 @@ import CoreBluetooth
     public func blufi(_ client: BlufiClient, didReceiveDeviceStatusResponse response: BlufiStatusResponse?, status: BlufiStatusCode) {
         if let completion = networkStatusCompletion {
             if status == StatusSuccess, let response = response {
-                completion(response.isStaConnectWiFi(), "Connected")
+                let isConnected = response.isStaConnectWiFi()
+                completion(isConnected, isConnected ? "Connected" : "Disconnected")
             } else {
                 completion(false, "Error")
             }
