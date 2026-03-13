@@ -196,7 +196,7 @@
           "tags": [],
           "docs": "",
           "complexTypes": [],
-          "type": "string[]"
+          "type": "{ ssid: string; rssi: number; }[]"
         }
       ]
     },

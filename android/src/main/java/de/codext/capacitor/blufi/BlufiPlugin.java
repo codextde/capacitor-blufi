@@ -519,7 +519,14 @@ public class BlufiPlugin extends Plugin {
                     mLog.d("onDeviceScanResult: scan successful, building result list...");
                     for (BlufiScanResult scanResult : results) {
                         mLog.d("onDeviceScanResult: found SSID=" + scanResult.getSsid() + ", RSSI=" + scanResult.getRssi());
-                        list.put(scanResult.getSsid());
+                        try {
+                            JSONObject item = new JSONObject();
+                            item.put("ssid", scanResult.getSsid());
+                            item.put("rssi", scanResult.getRssi());
+                            list.put(item);
+                        } catch (JSONException e) {
+                            mLog.e("Error building wifi scan item: " + e.getMessage());
+                        }
                     }
                 } else {
                     mLog.e("onDeviceScanResult: scan failed with status=" + status);

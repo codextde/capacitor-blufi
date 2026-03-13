@@ -7,7 +7,7 @@ export interface ScanResultItem {
 }
 
 export interface WifiListResult {
-  list: string[];
+  list: { ssid: string; rssi: number }[];
 }
 
 export interface WifiConnectResult {

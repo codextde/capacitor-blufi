@@ -5,7 +5,10 @@ export interface ScanResultItem {
     address: string;
 }
 export interface WifiListResult {
-    list: string[];
+    list: {
+        ssid: string;
+        rssi: number;
+    }[];
 }
 export interface WifiConnectResult {
     success: boolean;
