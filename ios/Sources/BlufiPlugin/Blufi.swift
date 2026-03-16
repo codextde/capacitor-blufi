@@ -14,7 +14,7 @@ import CoreBluetooth
     private var securityNegotiated: Bool = false
 
     // Completion handlers
-    private var scanWifiCompletion: (([String]) -> Void)?
+    private var scanWifiCompletion: (([[String: Any]]) -> Void)?
     private var scanWifiError: ((String) -> Void)?
     private var setWifiCompletion: ((Bool, String) -> Void)?
     private var networkStatusCompletion: ((Bool, String) -> Void)?
@@ -179,7 +179,7 @@ import CoreBluetooth
         blufiClient?.configure(params)
     }
     
-    func scanWifi(completion: @escaping ([String]) -> Void, error: @escaping (String) -> Void) {
+    func scanWifi(completion: @escaping ([[String: Any]]) -> Void, error: @escaping (String) -> Void) {
         print("BlufiImplementation: scanWifi called, blufiClient=\(blufiClient != nil), connected=\(connected), securityNegotiated=\(securityNegotiated)")
 
         if blufiClient == nil {
@@ -453,11 +453,11 @@ import CoreBluetooth
         scanWifiError = nil
 
         if let completion = completion {
-            var list: [String] = []
+            var list: [[String: Any]] = []
             if status == StatusSuccess, let scanResults = scanResults {
                 for response in scanResults {
                     print("BlufiImplementation: WiFi network: \(response.ssid) (RSSI: \(response.rssi))")
-                    list.append(response.ssid)
+                    list.append(["ssid": response.ssid, "rssi": response.rssi])
                 }
             } else {
                 print("BlufiImplementation: WiFi scan failed or empty, status: \(status.rawValue)")

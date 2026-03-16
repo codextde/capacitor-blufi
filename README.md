@@ -169,9 +169,9 @@ addListener(eventName: 'onBlufiEvent', listenerFunc: (event: any) => void) => Pr
 
 #### WifiListResult
 
-| Prop       | Type                  |
-| ---------- | --------------------- |
-| **`list`** | <code>string[]</code> |
+| Prop       | Type                                           |
+| ---------- | ---------------------------------------------- |
+| **`list`** | <code>{ ssid: string; rssi: number; }[]</code> |
 
 
 #### WifiConnectResult
