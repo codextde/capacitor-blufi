@@ -1,6 +1,6 @@
 {
   "name": "@codext/capacitor-blufi",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "description": "-",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -62,7 +62,7 @@
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
-    "@capacitor/core": ">=7.0.0"
+    "@capacitor/core": ">=8.0.0"
   },
   "prettier": "@ionic/prettier-config",
   "swiftlint": "@ionic/swiftlint-config",

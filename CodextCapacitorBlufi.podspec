@@ -15,7 +15,7 @@ Pod::Spec.new do |s|
   s.public_header_files = 'ios/Sources/**/*.h'
   s.preserve_paths = 'ios/Sources/BlufiPlugin/**/*'
   s.header_mappings_dir = 'ios/Sources/BlufiPlugin'
-  s.ios.deployment_target = '14.0'
+  s.ios.deployment_target = '15.0'
   s.dependency 'Capacitor'
   s.dependency 'OpenSSL-Universal'
   s.swift_version = '5.1'
