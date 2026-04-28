@@ -74,6 +74,10 @@ enum {
 @property(strong, nonatomic)BlufiNotifyData *notifyData;
 
 @property(strong, nonatomic)NSData *aesKey;
+@property(assign, nonatomic)CCCryptorRef aesEncryptorV2;
+@property(assign, nonatomic)CCCryptorRef aesDecryptorV2;
+@property(assign, nonatomic)NSInteger deviceVersion;
+@property(copy, nonatomic, nullable)void (^preparedBlock)(void);
 
 @property(assign, nonatomic)BOOL encrypted;
 @property(assign, nonatomic)BOOL checksum;
@@ -115,10 +119,37 @@ enum {
         
         _deviceAck = [[EspBlockingQueue alloc] init];
         _deviceKey = [[EspBlockingQueue alloc] init];
-        
+
+        _deviceVersion = -1;
+        _aesEncryptorV2 = NULL;
+        _aesDecryptorV2 = NULL;
+
         _closed = NO;
     }
     return self;
+}
+
+- (NSInteger)securityVersion {
+    return _deviceVersion < 0x0104 ? 1 : 2;
+}
+
+- (NSData *)generateAESIV2:(NSString *)domain key:(NSData *)key {
+    NSMutableData *buf = [[NSMutableData alloc] init];
+    [buf appendData:[domain dataUsingEncoding:NSUTF8StringEncoding]];
+    [buf appendData:key];
+    NSData *hash = [BlufiSecurity sha256:buf];
+    return [hash subdataWithRange:NSMakeRange(0, 16)];
+}
+
+- (void)releaseAESCryptors {
+    if (_aesEncryptorV2) {
+        CCCryptorRelease(_aesEncryptorV2);
+        _aesEncryptorV2 = NULL;
+    }
+    if (_aesDecryptorV2) {
+        CCCryptorRelease(_aesDecryptorV2);
+        _aesDecryptorV2 = NULL;
+    }
 }
 
 - (NSString *)hexFromUint4:(Byte)b {
@@ -167,14 +198,15 @@ enum {
     [_requestQueue cancelAllOperations];
     [_centralManager stopScan];
     [self clearConnection];
-    
+
     _blufiDelegate = nil;
     _centralManagerDelete = nil;
     _peripheralDelegate = nil;
     _centralManager.delegate = nil;
-    
+
     [_deviceAck cancel];
     [_deviceKey cancel];
+    [self releaseAESCryptors];
 }
 
 - (void)scanBLE {
@@ -248,6 +280,10 @@ enum {
     _writeChar = nil;
     _notifyChar = nil;
     [_deviceAck cancel];
+    _aesKey = nil;
+    _deviceVersion = -1;
+    _preparedBlock = nil;
+    [self releaseAESCryptors];
 }
 
 - (Byte)getTypeValueWithPackageType:(PackageType)pkgType subType:(SubType)subType {
@@ -403,8 +439,12 @@ enum {
     }
     
     if (encrypt && data && data.length > 0) {
-        NSData *iv = [self generateAESIV:sequence];
-        data = [BlufiSecurity aesEncrypt:data key:_aesKey iv:iv];
+        if ([self securityVersion] == 2 && _aesEncryptorV2) {
+            data = [BlufiSecurity cryptorUpdate:_aesEncryptorV2 data:data];
+        } else {
+            NSData *iv = [self generateAESIV:sequence];
+            data = [BlufiSecurity aesEncrypt:data key:_aesKey iv:iv];
+        }
     }
     if (data && data.length > 0) {
         [result appendData:data];
@@ -460,8 +500,12 @@ enum {
     NSData *data = [NSData dataWithBytes:dataBuf length:dataLen];
     
     if (frameCtrlData.isEncrypted) {
-        NSData *iv =[self generateAESIV:sequence];
-        data = [BlufiSecurity aesDecrypt:data key:_aesKey iv:iv];
+        if ([self securityVersion] == 2 && _aesDecryptorV2) {
+            data = [BlufiSecurity cryptorUpdate:_aesDecryptorV2 data:data];
+        } else {
+            NSData *iv = [self generateAESIV:sequence];
+            data = [BlufiSecurity aesDecrypt:data key:_aesKey iv:iv];
+        }
         memcpy(dataBuf, data.bytes, data.length);
     }
     
@@ -559,6 +603,14 @@ enum {
 }
 
 - (void)onVersionResponse:(BlufiVersionResponse *)response status:(BlufiStatusCode)code {
+    if (code == StatusSuccess && response) {
+        _deviceVersion = (response.bigVer << 8) | response.smallVer;
+    }
+    void (^prepared)(void) = self.preparedBlock;
+    if (prepared) {
+        self.preparedBlock = nil;
+        prepared();
+    }
     id delegate = _blufiDelegate;
     BlufiClient *client = self;
     if (delegate && [delegate respondsToSelector:@selector(blufi:didReceiveDeviceVersionResponse:status:)]) {
@@ -971,7 +1023,9 @@ enum {
 
 - (BlufiDH *)postNegotiateSecurity {
     Byte type = [self getTypeValueWithPackageType:PackageData subType:DataSubTypeNeg];
-    BlufiDH *blufiDH = [BlufiSecurity dhGenerateKeys];
+    BlufiDH *blufiDH = [self securityVersion] == 2
+        ? [BlufiSecurity dhGenerateKeys3072]
+        : [BlufiSecurity dhGenerateKeys];
     NSData *p = blufiDH.p;
     NSData *g = blufiDH.g;
     NSData *k = blufiDH.publicKey;
@@ -1062,7 +1116,16 @@ enum {
             }
             
             NSData *secretKey = [blufiDH generateSecret:deviceKey];
-            self.aesKey = [BlufiSecurity md5:secretKey];
+            if ([self securityVersion] == 2) {
+                self.aesKey = [BlufiSecurity sha256:secretKey];
+                NSData *encIV = [self generateAESIV2:@"blufi_dec" key:secretKey];
+                NSData *decIV = [self generateAESIV2:@"blufi_enc" key:secretKey];
+                [self releaseAESCryptors];
+                self.aesEncryptorV2 = [BlufiSecurity createAESCTRCryptor:kCCEncrypt key:self.aesKey iv:encIV];
+                self.aesDecryptorV2 = [BlufiSecurity createAESCTRCryptor:kCCDecrypt key:self.aesKey iv:decIV];
+            } else {
+                self.aesKey = [BlufiSecurity md5:secretKey];
+            }
             if (DBUG) {
                 NSLog(@"DH Secret = %@", secretKey);
                 NSLog(@"AES Key   = %@", self.aesKey);
@@ -1170,15 +1233,26 @@ enum {
 
 - (void)gattDiscoverCallback {
     id bDelegage = _blufiDelegate;
-    if (bDelegage && [bDelegage respondsToSelector:@selector(blufi:gattPrepared:service:writeChar:notifyChar:)]) {
-        BlufiClient *client = self;
-        CBService *service = _service;
-        CBCharacteristic *writeChar = _writeChar;
-        CBCharacteristic *notifyChar = _notifyChar;
-        BlufiStatusCode code = service && writeChar && notifyChar ? StatusSuccess : StatusFailed;
-        [_callbackQueue addOperationWithBlock:^{
+    if (!bDelegage || ![bDelegage respondsToSelector:@selector(blufi:gattPrepared:service:writeChar:notifyChar:)]) {
+        return;
+    }
+    BlufiClient *client = self;
+    CBService *service = _service;
+    CBCharacteristic *writeChar = _writeChar;
+    CBCharacteristic *notifyChar = _notifyChar;
+    BlufiStatusCode code = service && writeChar && notifyChar ? StatusSuccess : StatusFailed;
+    void (^fire)(void) = ^{
+        [self->_callbackQueue addOperationWithBlock:^{
             [bDelegage blufi:client gattPrepared:code service:service writeChar:writeChar notifyChar:notifyChar];
         }];
+    };
+
+    if (code == StatusSuccess) {
+        // Defer until we know the device version so V1/V2 security can be picked.
+        self.preparedBlock = fire;
+        [self requestDeviceVersion];
+    } else {
+        fire();
     }
 }
 

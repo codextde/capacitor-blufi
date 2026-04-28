@@ -10,7 +10,7 @@
 
 @implementation BlufiDH
 
-- (instancetype)initWithP:(NSData *)p G:(NSData *)g PublicKey:(NSData *)publicKey PrivateKey:(NSData *)privateKey DH:(nonnull DH *)dh {
+- (instancetype)initWithP:(NSData *)p G:(NSData *)g PublicKey:(NSData *)publicKey PrivateKey:(NSData *)privateKey DH:(nonnull DH *)dh keySize:(NSInteger)keySize {
     self = [super init];
     if (self) {
         _p = p;
@@ -18,6 +18,7 @@
         _publicKey = publicKey;
         _privateKey = privateKey;
         _dh = dh;
+        _keySize = keySize;
     }
     return self;
 }
@@ -27,33 +28,32 @@
         NSLog(@"BlufiDH: DH is nil");
         return nil;
     }
-    Byte shareKey[128];
+    NSInteger keySize = _keySize > 0 ? _keySize : 128;
+    Byte *shareKey = malloc(keySize);
     BIGNUM *pubKey = BN_bin2bn(srcPublicKey.bytes, (int)srcPublicKey.length, NULL);
     int ret = 0;
     while (!ret) {
         ret = DH_compute_key(shareKey, pubKey, _dh);
     }
     BN_free(pubKey);
-    
+
     int offset = 0;
-    for (int i = 0; i < 128; i++) {
+    for (int i = 0; i < keySize; i++) {
         if (shareKey[i] == 0) {
             offset++;
         } else {
             break;
         }
     }
-    
+
+    NSData *result;
     if (offset == 0) {
-        return [NSData dataWithBytes:shareKey length:128];
+        result = [NSData dataWithBytes:shareKey length:keySize];
     } else {
-        int secretLength = 128 - offset;
-        Byte secretKey[secretLength];
-        for (int i = 0; i < secretLength; i++) {
-            secretKey[i] = shareKey[i + offset];
-        }
-        return [NSData dataWithBytes:secretKey length:secretLength];
+        result = [NSData dataWithBytes:shareKey + offset length:keySize - offset];
     }
+    free(shareKey);
+    return result;
 }
 
 - (void)releaseDH {

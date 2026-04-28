@@ -10,6 +10,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CommonCrypto/CommonCrypto.h>
 #import "BlufiDH.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -22,11 +23,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (NSData *)md5:(NSData *)data;
 
++ (NSData *)sha256:(NSData *)data;
+
 + (NSData *)aesEncrypt:(NSData *)data key:(NSData *)key iv:(NSData *)iv;
 
 + (NSData *)aesDecrypt:(NSData *)data key:(NSData *)key iv:(NSData *)iv;
 
++ (CCCryptorRef)createAESCTRCryptor:(CCOperation)op key:(NSData *)key iv:(NSData *)iv;
+
++ (NSData *)cryptorUpdate:(CCCryptorRef)cryptor data:(NSData *)data;
+
 + (BlufiDH *)dhGenerateKeys;
+
++ (BlufiDH *)dhGenerateKeys3072;
 
 @end
 
