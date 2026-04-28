@@ -121,7 +121,6 @@ public class BlufiClient {
 
     /**
      * Request device to disconnect from current WiFi network.
-     * This stops any ongoing connection attempts.
      */
     public void requestDisconnectWifi() {
         mImpl.requestDisconnectWifi();

@@ -173,14 +173,6 @@ public class BlufiPlugin extends Plugin {
 
         if (device != null) {
             connectDevice(device);
-            handler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    if (mConnected && mBlufiClient != null) {
-                        mBlufiClient.negotiateSecurity();
-                    }
-                }
-            }, 1000);
             call.resolve();
         } else {
             call.reject("Device not found or invalid address");
@@ -337,7 +329,9 @@ public class BlufiPlugin extends Plugin {
     }
 
     private void onGattServiceCharacteristicDiscovered() {
-        // Implementation if needed
+        if (mConnected && mBlufiClient != null) {
+            mBlufiClient.negotiateSecurity();
+        }
     }
 
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
@@ -369,11 +363,9 @@ public class BlufiPlugin extends Plugin {
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             mLog.d(String.format(Locale.ENGLISH, "onMtuChanged status=%d, mtu=%d", status, mtu));
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                mBlufiClient.setPostPackageLengthLimit(20);
-            } else {
-                mBlufiClient.setPostPackageLengthLimit(20);
-            }
+            // Don't hardcode a 20-byte cap — the SDK already derives its packet length from
+            // the negotiated MTU. Forcing 20 fragments BluFi frames into ~50 BLE writes which
+            // some firmware fails to reassemble during V2 (3072-bit DH) negotiation.
             onGattServiceCharacteristicDiscovered();
         }
 
