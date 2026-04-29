@@ -79,6 +79,15 @@ enum {
 @property(assign, nonatomic)NSInteger deviceVersion;
 @property(copy, nonatomic, nullable)void (^preparedBlock)(void);
 
+// Auto-fallback from SECURITY_V2 to SECURITY_V1 on negotiation failure.
+// ESP-IDF v6.0 reports BluFi version 0x0104 which selects V2 (3072-bit DH /
+// SHA-256 / AES-CTR), but our firmware's blufi_security.c was reverted to
+// V1-only and rejects DH params > 128 bytes with ESP_BLUFI_DH_PARAM_ERROR.
+// When V2 fails we retry once with V1 forced, on the same GATT connection.
+@property(assign, atomic)BOOL negotiationInProgress;
+@property(assign, atomic)BOOL fallbackToV1Tried;
+@property(assign, atomic)NSInteger forceVersionOverride;
+
 @property(assign, nonatomic)BOOL encrypted;
 @property(assign, nonatomic)BOOL checksum;
 @property(assign, nonatomic)BOOL requireAck;
@@ -124,13 +133,39 @@ enum {
         _aesEncryptorV2 = NULL;
         _aesDecryptorV2 = NULL;
 
+        _negotiationInProgress = NO;
+        _fallbackToV1Tried = NO;
+        _forceVersionOverride = 0;
+
         _closed = NO;
     }
     return self;
 }
 
 - (NSInteger)securityVersion {
+    if (_forceVersionOverride == 1 || _forceVersionOverride == 2) {
+        return _forceVersionOverride;
+    }
     return _deviceVersion < 0x0104 ? 1 : 2;
+}
+
+// Trigger the V2 -> V1 fallback. Returns YES if fallback was queued (caller
+// must skip the normal onNegotiateSecurityResult delivery and let the
+// recursive _doNegotiateSecurity invocation report the final result).
+- (BOOL)tryFallbackToV1IfNeeded:(NSInteger)attemptVersion reason:(NSString *)reason {
+    if (attemptVersion != 2 || self.fallbackToV1Tried) {
+        return NO;
+    }
+    NSLog(@"BlufiClient V2 negotiation failed (%@), retrying with V1", reason);
+    self.fallbackToV1Tried = YES;
+    self.forceVersionOverride = 1;
+    self.aesKey = nil;
+    [self releaseAESCryptors];
+    self.encrypted = NO;
+    self.checksum = NO;
+    [NSThread sleepForTimeInterval:0.15];
+    [self _doNegotiateSecurity];
+    return YES;
 }
 
 - (NSData *)generateAESIV2:(NSString *)domain key:(NSData *)key {
@@ -780,6 +815,14 @@ enum {
 }
 
 - (void)onError:(NSInteger)errCode {
+    // When the firmware rejects our DH params (e.g. V1-only firmware sees a
+    // 3072-bit V2 key) it sends an ERROR_INFO frame instead of replying with
+    // its own public key. Wake the negotiation thread immediately by enqueueing
+    // an empty NSData so the fallback path runs without waiting forever on
+    // [self.deviceKey dequeue].
+    if (self.negotiationInProgress) {
+        [self.deviceKey enqueue:[NSData data]];
+    }
     id delegate = _blufiDelegate;
     BlufiClient *client = self;
     if (delegate && [delegate respondsToSelector:@selector(blufi:didReceiveError:)]) {
@@ -879,6 +922,16 @@ enum {
         BOOL posted = [self post:data encrypt:encrypted checksum:checksum requireAck:ack type:type];
         BlufiStatusCode code = posted ? StatusSuccess : StatusWriteFailed;
         [self onPostCustomData:data status:code];
+    }];
+}
+
+- (void)requestSetWifiOpMode:(NSInteger)opMode {
+    [_requestQueue addOperationWithBlock:^{
+        NSLog(@"requestSetWifiOpMode mode=%ld", (long)opMode);
+        BOOL posted = [self postDeviceMode:(OpMode)opMode];
+        if (!posted) {
+            NSLog(@"requestSetWifiOpMode post failed");
+        }
     }];
 }
 
@@ -1098,48 +1151,86 @@ enum {
 
 - (void)negotiateSecurity {
     [_requestQueue addOperationWithBlock:^{
-        BOOL setSecurity = NO;
-        BlufiStatusCode code = StatusFailed;
-        @try {
-            BlufiDH *blufiDH = [self postNegotiateSecurity];
-            if (!blufiDH) {
-                code = StatusWriteFailed;
+        [self _doNegotiateSecurity];
+    }];
+}
+
+- (void)_doNegotiateSecurity {
+    NSInteger attemptVersion = [self securityVersion];
+    NSLog(@"_doNegotiateSecurity attempting version=%ld fallbackTried=%d deviceVersion=0x%lx",
+          (long)attemptVersion, (int)self.fallbackToV1Tried, (long)_deviceVersion);
+    self.negotiationInProgress = YES;
+    BOOL setSecurity = NO;
+    BOOL fallbackTriggered = NO;
+    BlufiStatusCode code = StatusFailed;
+    @try {
+        BlufiDH *blufiDH = [self postNegotiateSecurity];
+        if (!blufiDH) {
+            if ([self tryFallbackToV1IfNeeded:attemptVersion reason:@"post failed"]) {
+                fallbackTriggered = YES;
                 return;
             }
-            NSLog(@"negotiateSecurity DH posted");
-            
-            NSData *deviceKey = [self.deviceKey dequeue];
-            if (!deviceKey) {
-                NSLog(@"negotiateSecurity Recevie nil deviceKey");
-                code = StatusFailed;
+            code = StatusWriteFailed;
+            return;
+        }
+        NSLog(@"negotiateSecurity DH posted");
+
+        NSData *deviceKey = [self.deviceKey dequeue];
+        if (!deviceKey || deviceKey.length == 0) {
+            NSLog(@"negotiateSecurity Receive nil/empty deviceKey");
+            if ([self tryFallbackToV1IfNeeded:attemptVersion reason:@"device key timeout/empty"]) {
+                fallbackTriggered = YES;
                 return;
             }
-            
-            NSData *secretKey = [blufiDH generateSecret:deviceKey];
-            if ([self securityVersion] == 2) {
-                self.aesKey = [BlufiSecurity sha256:secretKey];
-                NSData *encIV = [self generateAESIV2:@"blufi_dec" key:secretKey];
-                NSData *decIV = [self generateAESIV2:@"blufi_enc" key:secretKey];
-                [self releaseAESCryptors];
-                self.aesEncryptorV2 = [BlufiSecurity createAESCTRCryptor:kCCEncrypt key:self.aesKey iv:encIV];
-                self.aesDecryptorV2 = [BlufiSecurity createAESCTRCryptor:kCCDecrypt key:self.aesKey iv:decIV];
-            } else {
-                self.aesKey = [BlufiSecurity md5:secretKey];
+            code = StatusFailed;
+            return;
+        }
+
+        NSData *secretKey = [blufiDH generateSecret:deviceKey];
+        if (!secretKey) {
+            if ([self tryFallbackToV1IfNeeded:attemptVersion reason:@"null secret key"]) {
+                fallbackTriggered = YES;
+                return;
             }
-            if (DBUG) {
-                NSLog(@"DH Secret = %@", secretKey);
-                NSLog(@"AES Key   = %@", self.aesKey);
+            code = StatusFailed;
+            return;
+        }
+
+        if ([self securityVersion] == 2) {
+            self.aesKey = [BlufiSecurity sha256:secretKey];
+            NSData *encIV = [self generateAESIV2:@"blufi_dec" key:secretKey];
+            NSData *decIV = [self generateAESIV2:@"blufi_enc" key:secretKey];
+            [self releaseAESCryptors];
+            self.aesEncryptorV2 = [BlufiSecurity createAESCTRCryptor:kCCEncrypt key:self.aesKey iv:encIV];
+            self.aesDecryptorV2 = [BlufiSecurity createAESCTRCryptor:kCCDecrypt key:self.aesKey iv:decIV];
+        } else {
+            self.aesKey = [BlufiSecurity md5:secretKey];
+        }
+        if (DBUG) {
+            NSLog(@"DH Secret = %@", secretKey);
+            NSLog(@"AES Key   = %@", self.aesKey);
+        }
+
+        setSecurity = [self postSetSecurityCtrlEncrypted:NO ctrlChecksum:NO dataEncrypted:YES dataChecksum:YES];
+        if (!setSecurity) {
+            NSLog(@"negotiateSecurity postSetSecurity failed");
+            if ([self tryFallbackToV1IfNeeded:attemptVersion reason:@"set security failed"]) {
+                fallbackTriggered = YES;
+                return;
             }
-            
-            setSecurity = [self postSetSecurityCtrlEncrypted:NO ctrlChecksum:NO dataEncrypted:YES dataChecksum:YES];
-            if (!setSecurity) {
-                NSLog(@"negotiateSecurity postSetSecurity failed");
-                code = StatusWriteFailed;
-            }
-        } @catch (NSException *exception) {
-            NSLog(@"negotiateSecurity exception: %@", exception);
-            code = StatusException;
-        } @finally {
+            code = StatusWriteFailed;
+        }
+    } @catch (NSException *exception) {
+        NSLog(@"negotiateSecurity exception: %@", exception);
+        if ([self tryFallbackToV1IfNeeded:attemptVersion
+                                    reason:[NSString stringWithFormat:@"exception: %@", exception.name]]) {
+            fallbackTriggered = YES;
+            return;
+        }
+        code = StatusException;
+    } @finally {
+        self.negotiationInProgress = NO;
+        if (!fallbackTriggered) {
             if (setSecurity) {
                 self.encrypted = YES;
                 self.checksum = YES;
@@ -1150,7 +1241,7 @@ enum {
                 [self onNegotiateSecurityResult:code];
             }
         }
-    }];
+    }
 }
 
 - (void)centralManagerDidUpdateState:(nonnull CBCentralManager *)central {

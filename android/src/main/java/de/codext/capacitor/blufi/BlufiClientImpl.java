@@ -127,6 +127,15 @@ class BlufiClientImpl implements BlufiParameter {
     private Runnable mPreparedRunnable = null;
     private int mDeviceVersion = -1;
 
+    // Auto-fallback from SECURITY_V2 to SECURITY_V1 when negotiation fails.
+    // ESP-IDF v6.0 reports BluFi version 0x0104 which selects V2 (3072-bit DH /
+    // SHA-256 / AES-CTR), but our firmware's blufi_security.c was reverted to
+    // V1-only and rejects DH params > 128 bytes with ESP_BLUFI_DH_PARAM_ERROR.
+    // When V2 fails we retry once with V1 forced, on the same GATT connection.
+    private boolean mFallbackToV1Tried = false;
+    private int mForceVersionOverride = 0; // 0 = auto, SECURITY_V1, or SECURITY_V2
+    private volatile boolean mNegotiationInProgress = false;
+
     BlufiClientImpl(BlufiClient client, Context context, BluetoothDevice device) {
         mClient = client;
         mContext = context;
@@ -162,6 +171,12 @@ class BlufiClientImpl implements BlufiParameter {
         if (mThreadPool == null) {
             throw new IllegalStateException("The BlufiClient has closed");
         }
+
+        // Reset fallback state for the new connection so the next session can
+        // attempt V2 again before falling back.
+        mFallbackToV1Tried = false;
+        mForceVersionOverride = 0;
+        mNegotiationInProgress = false;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             mGatt = mDevice.connectGatt(mContext, false, mInnerGattCallback, BluetoothDevice.TRANSPORT_LE);
@@ -265,6 +280,16 @@ class BlufiClientImpl implements BlufiParameter {
             @Override
             void execute() {
                 __requestDisconnectWifi();
+            }
+        });
+    }
+
+    void requestSetWifiOpMode(final int opMode) {
+        mThreadPool.submit(new ThrowableRunnable() {
+            @Override
+            void execute() {
+                boolean ok = postDeviceMode(opMode);
+                Log.d(TAG, "requestSetWifiOpMode mode=" + opMode + " posted=" + ok);
             }
         });
     }
@@ -768,6 +793,16 @@ class BlufiClientImpl implements BlufiParameter {
     }
 
     private void onError(final int errCode) {
+        // When the firmware rejects our DH params (e.g. V1-only firmware sees
+        // a 3072-bit V2 key) it sends an ERROR_INFO frame instead of replying
+        // with its own public key. Unblock the polling thread immediately so
+        // the fallback path runs without waiting the full 20s timeout.
+        if (mNegotiationInProgress) {
+            try {
+                mDevicePublicKeyQueue.add(new BigInteger("0"));
+            } catch (Exception ignored) {
+            }
+        }
         mUIHandler.post(() -> {
             if (mUserBlufiCallback != null) {
                 mUserBlufiCallback.onError(mClient, errCode);
@@ -776,65 +811,79 @@ class BlufiClientImpl implements BlufiParameter {
     }
 
     private void __negotiateSecurity() {
-        BlufiDH espDH = postNegotiateSecurity();
-        if (espDH == null) {
-            Log.w(TAG, "negotiateSecurity postNegotiateSecurity failed");
-            onNegotiateSecurityResult(BlufiCallback.CODE_NEG_POST_FAILED);
-            return;
-        }
-
-        BigInteger devicePublicKey;
+        int attemptVersion = getSecurityVersion();
+        Log.i(TAG, "__negotiateSecurity attempting version=" + attemptVersion
+                + " fallbackTried=" + mFallbackToV1Tried
+                + " deviceVersion=0x" + Integer.toHexString(mDeviceVersion));
+        mNegotiationInProgress = true;
         try {
-            devicePublicKey = mDevicePublicKeyQueue.poll(20, TimeUnit.SECONDS);
-            if (devicePublicKey == null || devicePublicKey.bitLength() == 0) {
-                onNegotiateSecurityResult(BlufiCallback.CODE_NEG_ERR_DEV_KEY);
+            BlufiDH espDH = postNegotiateSecurity();
+            if (espDH == null) {
+                Log.w(TAG, "negotiateSecurity postNegotiateSecurity failed");
+                if (tryFallbackToV1IfNeeded(attemptVersion, "post failed")) return;
+                onNegotiateSecurityResult(BlufiCallback.CODE_NEG_POST_FAILED);
                 return;
             }
-        } catch (InterruptedException e) {
-            Log.w(TAG, "Take device public key interrupted");
-            Thread.currentThread().interrupt();
-            return;
-        }
 
-        try {
-            espDH.generateSecretKey(devicePublicKey);
-            byte[] secretKey = espDH.getSecretKey();
-            if (secretKey == null) {
+            BigInteger devicePublicKey;
+            try {
+                devicePublicKey = mDevicePublicKeyQueue.poll(20, TimeUnit.SECONDS);
+                if (devicePublicKey == null || devicePublicKey.bitLength() == 0) {
+                    if (tryFallbackToV1IfNeeded(attemptVersion, "device key timeout/empty")) return;
+                    onNegotiateSecurityResult(BlufiCallback.CODE_NEG_ERR_DEV_KEY);
+                    return;
+                }
+            } catch (InterruptedException e) {
+                Log.w(TAG, "Take device public key interrupted");
+                Thread.currentThread().interrupt();
+                return;
+            }
+
+            try {
+                espDH.generateSecretKey(devicePublicKey);
+                byte[] secretKey = espDH.getSecretKey();
+                if (secretKey == null) {
+                    if (tryFallbackToV1IfNeeded(attemptVersion, "null secret key")) return;
+                    onNegotiateSecurityResult(BlufiCallback.CODE_NEG_ERR_SECURITY);
+                    return;
+                }
+
+                int securityVersion = getSecurityVersion();
+                if (securityVersion == SECURITY_V2) {
+                    mAESKey = BlufiHash.getSHA256Bytes(secretKey);
+                    byte[] encIV = generateAESIV2(DEC_DOMAIN, secretKey);
+                    mEncryptorV2 = new BlufiAES(mAESKey, AES_TRANSFORMATION_V2, encIV);
+                    byte[] decIV = generateAESIV2(ENC_DOMAIN, secretKey);
+                    mDecryptorV2 = new BlufiAES(mAESKey, AES_TRANSFORMATION_V2, decIV);
+                } else {
+                    mAESKey = BlufiHash.getMD5Bytes(secretKey);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "__negotiateSecurity: ", e);
+                if (tryFallbackToV1IfNeeded(attemptVersion, "exception: " + e.getMessage())) return;
                 onNegotiateSecurityResult(BlufiCallback.CODE_NEG_ERR_SECURITY);
                 return;
             }
 
-            int securityVersion = getSecurityVersion();
-            if (securityVersion == SECURITY_V2) {
-                mAESKey = BlufiHash.getSHA256Bytes(secretKey);
-                byte[] encIV = generateAESIV2(DEC_DOMAIN, secretKey);
-                mEncryptorV2 = new BlufiAES(mAESKey, AES_TRANSFORMATION_V2, encIV);
-                byte[] decIV = generateAESIV2(ENC_DOMAIN, secretKey);
-                mDecryptorV2 = new BlufiAES(mAESKey, AES_TRANSFORMATION_V2, decIV);
-            } else {
-                mAESKey = BlufiHash.getMD5Bytes(secretKey);
+            boolean setSecurity = false;
+            try {
+                setSecurity = postSetSecurity(false, false, true, true);
+            } catch (Exception e) {
+                Log.w(TAG, "__negotiateSecurity: ", e);
             }
-        } catch (Exception e) {
-            Log.w(TAG, "__negotiateSecurity: ", e);
-            onNegotiateSecurityResult(BlufiCallback.CODE_NEG_ERR_SECURITY);
-            return;
-        }
 
-        boolean setSecurity = false;
-        try {
-            setSecurity = postSetSecurity(false, false, true, true);
-        } catch (Exception e) {
-            Log.w(TAG, "__negotiateSecurity: ", e);
-        }
-
-        if (setSecurity) {
-            mEncrypted = true;
-            mChecksum = true;
-            onNegotiateSecurityResult(BlufiCallback.STATUS_SUCCESS);
-        } else {
-            mEncrypted = false;
-            mChecksum = false;
-            onNegotiateSecurityResult(BlufiCallback.CODE_NEG_ERR_SET_SECURITY);
+            if (setSecurity) {
+                mEncrypted = true;
+                mChecksum = true;
+                onNegotiateSecurityResult(BlufiCallback.STATUS_SUCCESS);
+            } else {
+                mEncrypted = false;
+                mChecksum = false;
+                if (tryFallbackToV1IfNeeded(attemptVersion, "set security failed")) return;
+                onNegotiateSecurityResult(BlufiCallback.CODE_NEG_ERR_SET_SECURITY);
+            }
+        } finally {
+            mNegotiationInProgress = false;
         }
     }
 
@@ -847,11 +896,39 @@ class BlufiClientImpl implements BlufiParameter {
     }
 
     private int getSecurityVersion() {
+        if (mForceVersionOverride == SECURITY_V1 || mForceVersionOverride == SECURITY_V2) {
+            return mForceVersionOverride;
+        }
         if (mDeviceVersion < 0x0104) {
             return SECURITY_V1;
         } else {
             return SECURITY_V2;
         }
+    }
+
+    // Trigger the V2 -> V1 fallback. Returns true if fallback was queued (caller
+    // must return immediately without invoking onNegotiateSecurityResult); returns
+    // false when no fallback is possible and the caller should report the error
+    // to the user.
+    private boolean tryFallbackToV1IfNeeded(int attemptVersion, String reason) {
+        if (attemptVersion != SECURITY_V2 || mFallbackToV1Tried) {
+            return false;
+        }
+        Log.w(TAG, "V2 negotiation failed (" + reason + "), retrying with V1");
+        mFallbackToV1Tried = true;
+        mForceVersionOverride = SECURITY_V1;
+        mDevicePublicKeyQueue.clear();
+        if (mAck != null) {
+            mAck.clear();
+        }
+        mAESKey = null;
+        mEncryptorV2 = null;
+        mDecryptorV2 = null;
+        mEncrypted = false;
+        mChecksum = false;
+        sleep(150);
+        __negotiateSecurity();
+        return true;
     }
 
     private BlufiDH postNegotiateSecurity() {

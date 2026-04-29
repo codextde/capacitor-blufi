@@ -223,6 +223,26 @@ import CoreBluetooth
         blufiClient?.requestDeviceScan()
     }
     
+    func setWifiOpMode(mode: Int, completion: @escaping (Bool, String) -> Void) {
+        print("BlufiImplementation: setWifiOpMode called, mode=\(mode), blufiClient=\(blufiClient != nil), connected=\(connected)")
+
+        if blufiClient == nil {
+            completion(false, "Not connected (blufiClient is nil)")
+            return
+        }
+
+        if !connected {
+            completion(false, "Not connected")
+            return
+        }
+
+        blufiClient?.requestSetWifiOpMode(mode)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            completion(true, "OpMode \(mode) request sent")
+        }
+    }
+
     func disconnectWifi(completion: @escaping (Bool, String) -> Void) {
         print("BlufiImplementation: disconnectWifi called, blufiClient=\(blufiClient != nil), connected=\(connected), securityNegotiated=\(securityNegotiated)")
 
@@ -483,6 +503,25 @@ import CoreBluetooth
         } else {
             notifyEvent(makeJson(command: "post_custom_data", data: "0"))
         }
+    }
+
+    public func blufi(_ client: BlufiClient, didReceiveError errCode: Int) {
+        print("BlufiImplementation: didReceiveError errCode: \(errCode)")
+        if let errorCallback = scanWifiError {
+            errorCallback("WiFi scan failed (firmware error \(errCode))")
+            scanWifiCompletion = nil
+            scanWifiError = nil
+        }
+        if let completion = setWifiCompletion {
+            completion(false, "WiFi setup failed (firmware error \(errCode))")
+            setWifiCompletion = nil
+        }
+        if let errorCallback = networkStatusError {
+            errorCallback("Network status failed (firmware error \(errCode))")
+            networkStatusCompletion = nil
+            networkStatusError = nil
+        }
+        notifyEvent(makeJson(command: "receive_error_code", data: "\(errCode)"))
     }
 
     public func blufi(_ client: BlufiClient, didReceiveCustomData data: Data, status: BlufiStatusCode) {

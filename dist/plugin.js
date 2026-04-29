@@ -33,6 +33,9 @@ var capacitorBlufi = (function (exports, core) {
         async disconnectWifi() {
             throw this.unavailable('BluFi is not available on web');
         }
+        async setWifiOpMode(_options) {
+            throw this.unavailable('BluFi is not available on web');
+        }
         async getNetworkStatus() {
             throw this.unavailable('BluFi is not available on web');
         }

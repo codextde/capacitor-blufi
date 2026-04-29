@@ -46,6 +46,10 @@ export class BlufiWeb extends WebPlugin implements BlufiPlugin {
     throw this.unavailable('BluFi is not available on web');
   }
 
+  async setWifiOpMode(_options: { mode: number }): Promise<{ success: boolean; message: string }> {
+    throw this.unavailable('BluFi is not available on web');
+  }
+
   async getNetworkStatus(): Promise<NetworkStatusResult> {
     throw this.unavailable('BluFi is not available on web');
   }

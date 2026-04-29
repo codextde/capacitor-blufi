@@ -254,6 +254,31 @@ public class BlufiPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setWifiOpMode(PluginCall call) {
+        if (mBlufiClient == null) {
+            call.reject("Not connected");
+            return;
+        }
+        if (!mConnected) {
+            call.reject("Not connected (mConnected=false)");
+            return;
+        }
+        Integer mode = call.getInt("mode");
+        if (mode == null) {
+            call.reject("Missing mode (0=NULL, 1=STA, 2=SoftAP, 3=STA+SoftAP)");
+            return;
+        }
+        mLog.d("setWifiOpMode mode=" + mode);
+        mBlufiClient.requestSetWifiOpMode(mode);
+        handler.postDelayed(() -> {
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "OpMode " + mode + " request sent");
+            call.resolve(ret);
+        }, 800);
+    }
+
+    @PluginMethod
     public void getNetworkStatus(PluginCall call) {
         if (mBlufiClient == null) {
             call.reject("Not connected");
@@ -571,6 +596,24 @@ public class BlufiPlugin extends Plugin {
 
         @Override
         public void onError(BlufiClient client, int errCode) {
+            // The firmware reports errors out-of-band via SUBTYPE_ERROR while a
+            // BluFi command is in flight (e.g. ESP_BLUFI_WIFI_SCAN_FAIL when
+            // esp_wifi_scan_start() is rejected because the STA is busy
+            // reconnecting). Without rejecting the pending PluginCall here,
+            // scanWifi/setWifi/getNetworkStatus would hang forever waiting for
+            // a list/status frame the firmware will never send.
+            if (scanWifiCall != null) {
+                scanWifiCall.reject("WiFi scan failed (firmware error " + errCode + ")");
+                scanWifiCall = null;
+            }
+            if (setWifiCall != null) {
+                setWifiCall.reject("WiFi setup failed (firmware error " + errCode + ")");
+                setWifiCall = null;
+            }
+            if (networkStatusCall != null) {
+                networkStatusCall.reject("Network status failed (firmware error " + errCode + ")");
+                networkStatusCall = null;
+            }
             notifyListeners("onBlufiEvent", makeJson("receive_error_code", errCode + ""));
         }
     }

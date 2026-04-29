@@ -16,6 +16,7 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "scanWifi", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setWifi", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnectWifi", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setWifiOpMode", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getNetworkStatus", returnType: CAPPluginReturnPromise)
     ]
 
@@ -90,6 +91,19 @@ public class BlufiPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func disconnectWifi(_ call: CAPPluginCall) {
         implementation?.disconnectWifi(completion: { success, message in
+            call.resolve([
+                "success": success,
+                "message": message
+            ])
+        })
+    }
+
+    @objc func setWifiOpMode(_ call: CAPPluginCall) {
+        guard let mode = call.getInt("mode") else {
+            call.reject("Missing mode (0=NULL, 1=STA, 2=SoftAP, 3=STA+SoftAP)")
+            return
+        }
+        implementation?.setWifiOpMode(mode: mode, completion: { success, message in
             call.resolve([
                 "success": success,
                 "message": message

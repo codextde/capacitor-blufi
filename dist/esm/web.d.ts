@@ -17,5 +17,11 @@ export declare class BlufiWeb extends WebPlugin implements BlufiPlugin {
         password: string;
     }): Promise<WifiConnectResult>;
     disconnectWifi(): Promise<WifiDisconnectResult>;
+    setWifiOpMode(_options: {
+        mode: number;
+    }): Promise<{
+        success: boolean;
+        message: string;
+    }>;
     getNetworkStatus(): Promise<NetworkStatusResult>;
 }

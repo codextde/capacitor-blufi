@@ -22,6 +22,7 @@ npx cap sync
 * [`scanWifi()`](#scanwifi)
 * [`setWifi(...)`](#setwifi)
 * [`disconnectWifi()`](#disconnectwifi)
+* [`setWifiOpMode(...)`](#setwifiopmode)
 * [`getNetworkStatus()`](#getnetworkstatus)
 * [`addListener('onBlufiEvent', ...)`](#addlisteneronblufievent-)
 * [Interfaces](#interfaces)
@@ -124,6 +125,21 @@ disconnectWifi() => Promise<WifiDisconnectResult>
 ```
 
 **Returns:** <code>Promise&lt;<a href="#wifidisconnectresult">WifiDisconnectResult</a>&gt;</code>
+
+--------------------
+
+
+### setWifiOpMode(...)
+
+```typescript
+setWifiOpMode(options: { mode: number; }) => Promise<{ success: boolean; message: string; }>
+```
+
+| Param         | Type                           |
+| ------------- | ------------------------------ |
+| **`options`** | <code>{ mode: number; }</code> |
+
+**Returns:** <code>Promise&lt;{ success: boolean; message: string; }&gt;</code>
 
 --------------------
 

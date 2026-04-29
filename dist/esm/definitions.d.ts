@@ -39,6 +39,12 @@ export interface BlufiPlugin {
         password: string;
     }): Promise<WifiConnectResult>;
     disconnectWifi(): Promise<WifiDisconnectResult>;
+    setWifiOpMode(options: {
+        mode: number;
+    }): Promise<{
+        success: boolean;
+        message: string;
+    }>;
     getNetworkStatus(): Promise<NetworkStatusResult>;
     addListener(eventName: 'onBlufiEvent', listenerFunc: (event: any) => void): Promise<PluginListenerHandle>;
 }

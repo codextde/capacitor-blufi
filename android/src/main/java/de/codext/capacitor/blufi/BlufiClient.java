@@ -127,6 +127,14 @@ public class BlufiClient {
     }
 
     /**
+     * Request device to set Wi-Fi operating mode.
+     * 0 = NULL (radio off), 1 = STA, 2 = SoftAP, 3 = STA+SoftAP.
+     */
+    public void requestSetWifiOpMode(int opMode) {
+        mImpl.requestSetWifiOpMode(opMode);
+    }
+
+    /**
      * Configure the device to a station or soft AP. The posted result will be notified in
      * {@link BlufiCallback#onPostConfigureParams(BlufiClient, int)}
      *

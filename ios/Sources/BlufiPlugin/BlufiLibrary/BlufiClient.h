@@ -117,6 +117,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)requestDisconnectWifi;
 
 /*!
+ * @method requestSetWifiOpMode:
+ *
+ * @discussion Send the BluFi SET_WIFI_OPMODE control frame.
+ *             0 = NULL (radio off), 1 = STA, 2 = SoftAP, 3 = STA+SoftAP.
+ */
+- (void)requestSetWifiOpMode:(NSInteger)opMode;
+
+/*!
  * @method configure:
  *
  * @discussion Configure the device to a station or soft AP.

@@ -116,6 +116,22 @@
         "slug": "disconnectwifi"
       },
       {
+        "name": "setWifiOpMode",
+        "signature": "(options: { mode: number; }) => Promise<{ success: boolean; message: string; }>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "{ mode: number; }"
+          }
+        ],
+        "returns": "Promise<{ success: boolean; message: string; }>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "setwifiopmode"
+      },
+      {
         "name": "getNetworkStatus",
         "signature": "() => Promise<NetworkStatusResult>",
         "parameters": [],
